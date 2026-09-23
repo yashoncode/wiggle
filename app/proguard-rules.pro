@@ -1,0 +1,2 @@
+-keepattributes *Annotation*, InnerClasses, Signature, RuntimeVisible*
+-keep class io.wiggle.data.** { *; }

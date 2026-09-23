@@ -1,0 +1,20 @@
+# Release signing. These two must never reach the remote: with them, anyone can publish a build
+# that Android will install over this app. Back them up somewhere private instead.
+keystore.properties
+*.jks
+*.keystore
+
+# Machine-specific
+local.properties
+
+# Build output
+build/
+.gradle/
+.kotlin/
+*.apk
+*.aab
+
+# IDE
+.idea/
+*.iml
+.DS_Store
