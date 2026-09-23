@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">Wiggle</string>
     <string name="widget_description">Today at a glance: what is logged, what is waiting, and the water left to drink.</string>
+    <string name="widget_placeholder">Open Wiggle once to fill this in.</string>
 </resources>

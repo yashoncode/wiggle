@@ -14,9 +14,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.glance.appwidget.updateAll
+import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import io.wiggle.alarm.Alarms
 import io.wiggle.ui.WiggleRoot
+import io.wiggle.widget.WiggleWidget
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -38,6 +42,18 @@ class MainActivity : ComponentActivity() {
                 openTarget = openTarget,
                 onOpenTargetHandled = { openTarget = null },
             )
+        }
+    }
+
+    /**
+     * Some phones will not start the app for a widget broadcast at all, which leaves the widget on
+     * its placeholder however long you wait. Opening the app is the one moment we are certainly
+     * running, so redraw it here.
+     */
+    override fun onStart() {
+        super.onStart()
+        lifecycleScope.launch {
+            runCatching { WiggleWidget().updateAll(this@MainActivity) }
         }
     }
 

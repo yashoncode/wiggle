@@ -104,12 +104,18 @@ them, anyone can publish a build that Android installs straight over this app.
    `cacheDir/export` and hands them to the share sheet through a FileProvider. `Csv` is pure and
    tested, and the weight file is written in the shape `BulkParse` already reads, so an export
    imports straight back.
-11. **Glance widget** (1.1, rebuilt in 1.3) — a 3x3 readout of today, one card per person in a
-   list the widget scrolls: weigh-in and measurements marked done, due or idle, then water against
-   the goal with a bar, how much is left, and a +250 ml button that logs to *that* person without
-   opening anything. `TodayOverview` decides done/due/idle and is tested. Refreshed by `WiggleApp`
-   when weight, body, water or reminders change, with the provider's 30-minute timer as a backstop.
-   A widget cannot page sideways, so the list scrolls instead.
+11. **Glance widget** (1.1, rebuilt in 1.3) — a 3x3 readout of today: one person fills it, and the
+   `‹ 1/2 ›` arrows turn it to the next. Weigh-in and measurements are marked done, due or idle,
+   then water against the goal with a bar, how much is left, and a +250 ml button that logs to
+   *that* person without opening anything. `TodayOverview` decides done/due/idle and is tested.
+   Which person a widget is turned to is per widget, in `PreferencesGlanceStateDefinition`, so two
+   widgets can sit on two people. Refreshed by `WiggleApp` when weight, body, water or reminders
+   change, by `MainActivity.onStart`, and by the provider's 30-minute timer as a backstop.
+
+   **There is no sideways swipe, and there cannot be.** The launcher keeps horizontal drags for
+   changing home screens, and RemoteViews — which every widget is, Glance included — has no
+   horizontal pager among the views it allows. A real swipe would mean a `StackView`, whose gesture
+   is a vertical drag, so it would not be the asked-for gesture either.
 
    Two traps live here. **A Glance container holds at most ten children**; go over and the whole
    translation throws and the widget sits on its loading layout for good, which is why a card is
@@ -151,6 +157,9 @@ them, anyone can publish a build that Android installs straight over this app.
 - A dismissed update is offered again on the next launch; there is no "skip this version".
 - Tag `v1.2` sits one commit before `Render release notes as plain text`, which is in the released
   APK. Moving a published tag needed a force push, so the tag was left where it was.
-- The widget shows the loading layout for as long as the launcher takes to start the app process
-  after an install, which on a cold device is tens of seconds. Nothing in the app can shorten it.
+- A widget cannot draw itself: only the app process can, so on phones that refuse to start an app
+  in the background — ColorOS and Realme UI are the usual ones — the widget sits on its placeholder
+  until Wiggle is opened. `MainActivity.onStart` redraws it for exactly that reason, and the
+  placeholder says "Open Wiggle once to fill this in" rather than spinning. The device-side fix is
+  Settings, Battery, allow background activity / auto-launch for Wiggle.
 - Health Connect dependency is not in the Gradle cache; it will download on first use.
