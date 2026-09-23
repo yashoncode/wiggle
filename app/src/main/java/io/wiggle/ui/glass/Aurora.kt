@@ -124,13 +124,26 @@ fun AuroraBackground(
 
             // A slight vertical darkening keeps text at the bottom of the screen readable
             // once the tab bar sits over it.
+            //
+            // Drawn over the whole canvas with the fade placed by startY/endY. A gradient brush is
+            // laid out in canvas coordinates, not in the coordinates of the rectangle it fills, so
+            // giving this a rectangle that starts at 0.6h put the whole fade above the rectangle
+            // and painted a hard horizontal seam across the middle of the screen.
+            val scrimFrom = h * 0.45f
+            val scrim = colors.background.copy(alpha = if (colors.isDark) 0.55f else 0.35f)
             drawRect(
                 brush = Brush.verticalGradient(
-                    0f to Color.Transparent,
-                    1f to colors.background.copy(alpha = if (colors.isDark) 0.55f else 0.35f),
+                    // Eased rather than linear: a straight ramp still shows a faint line where it
+                    // leaves transparent, because the eye reads the sudden change in slope.
+                    0.00f to Color.Transparent,
+                    0.35f to scrim.copy(alpha = scrim.alpha * 0.10f),
+                    0.70f to scrim.copy(alpha = scrim.alpha * 0.50f),
+                    1.00f to scrim,
+                    startY = scrimFrom,
+                    endY = h,
                 ),
-                topLeft = Offset(0f, h * 0.6f),
-                size = Size(w, h * 0.4f),
+                topLeft = Offset.Zero,
+                size = Size(w, h),
             )
         }
         content()

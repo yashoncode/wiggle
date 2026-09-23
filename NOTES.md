@@ -36,7 +36,7 @@ onboarding complete, so first-run setup only appears in release or after `pm cle
 `app/build.gradle.kts`. **Back both up.** Losing the keystore means this app can never be updated
 under the same identity. Without `keystore.properties`, `assembleRelease` still builds, unsigned.
 
-Current release: `Wiggle 1.3` (versionCode 4), published at
+Current release: `Wiggle 1.4` (versionCode 5), published at
 <https://github.com/yashoncode/wiggle/releases>. Earlier APKs are in
 `C:\Users\Yashwanth\Downloads\` (`Wiggle-1.0.apk`, `Wiggle-1.1.apk`).
 
@@ -48,7 +48,7 @@ APK is attached to it.
 ```
 ./gradlew :app:assembleRelease
 git push origin main
-git tag -a v1.4 -m "Wiggle 1.4" && git push origin v1.4
+git tag -a v1.5 -m "Wiggle 1.5" && git push origin v1.5
 ```
 
 Then create the release and attach `app/build/outputs/apk/release/app-release.apk` to it, named
@@ -134,14 +134,25 @@ them, anyone can publish a build that Android installs straight over this app.
    `HttpURLConnection` and `org.json`, because one unauthenticated GET is not worth an HTTP stack
    in the APK. A failed check is silent: no network is not news.
 
-14. **Feel** (1.2) — tapping a card gives it a short damped wobble (`Modifier.wiggleOnTap`), which
-   is how a surface with nothing behind it still answers a finger; it adds no click semantics, so
-   a screen reader is not told a static card is a button. The −/+ steppers were rebuilt around
+14. **Feel** (1.2, reworked in 1.4) — tapping a card gives it a small pop (`Modifier.popOnTap`):
+   the surface dips to 0.97 and springs back past its own size in about a fifth of a second. It
+   adds no click semantics, so a screen reader is not told a static card is a button. Given the
+   interaction source of a real `clickable`, it holds the dip for as long as the finger is down and
+   pops on release, which is why `TappableGlassCard` no longer needs `pressScale` as well: one
+   scale layer does both jobs. It replaced a three-swing wobble, which read as noise once every
+   card on every screen had it. The −/+ steppers were rebuilt around
    `rememberUpdatedState`: keying their `pointerInput` on the lambda tore the gesture down mid-press,
    stranding the press highlight and leaving the repeat loop counting from a stale value.
 
 15. **Widget overview** (1.3) — see the widget entry above: the readout became today's checklist,
    several people at once, and each card logs its own water.
+16. **Background seam** (1.4) — the scrim that darkens the lower screen was drawn as a rectangle
+   starting at 0.6 of the height with a `verticalGradient` from transparent. A gradient brush is
+   laid out in canvas coordinates, not in the coordinates of the rectangle it fills, so the whole
+   fade landed *above* the rectangle and the rectangle painted flat: a hard horizontal line across
+   the middle of the screen, most obvious in dark mode. It now covers the whole canvas with the
+   fade placed by `startY`/`endY`, and is eased rather than linear so the eye cannot find where it
+   leaves transparent.
 
 ## Remaining
 
@@ -155,6 +166,9 @@ them, anyone can publish a build that Android installs straight over this app.
 - The app downloads an update through the browser rather than installing it itself. Doing that
   in-app needs `REQUEST_INSTALL_PACKAGES`, a `DownloadManager` job and an installer intent.
 - A dismissed update is offered again on the next launch; there is no "skip this version".
+- 1.3 shipped twice: the widget fix was rebuilt into the same version, so devices already on 1.3
+  were never offered it by the in-app check, which compares version *names*. Anything that has to
+  reach an installed phone needs a version bump, not a replaced asset.
 - Tag `v1.2` sits one commit before `Render release notes as plain text`, which is in the released
   APK. Moving a published tag needed a force push, so the tag was left where it was.
 - A widget cannot draw itself: only the app process can, so on phones that refuse to start an app

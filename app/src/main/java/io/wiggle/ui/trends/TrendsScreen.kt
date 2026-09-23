@@ -43,7 +43,7 @@ import io.wiggle.ui.glass.GlassCard
 import io.wiggle.ui.glass.GlassDefaults
 import io.wiggle.ui.glass.cardEntrance
 import io.wiggle.ui.glass.glass
-import io.wiggle.ui.glass.wiggleOnTap
+import io.wiggle.ui.glass.popOnTap
 import io.wiggle.ui.icons.Icon
 import io.wiggle.ui.icons.Lucide
 import io.wiggle.ui.theme.WiggleTheme
@@ -270,7 +270,7 @@ private fun StatTile(label: String, value: String, accent: Color, modifier: Modi
     val colors = WiggleTheme.colors
     Column(
         modifier
-            .wiggleOnTap()
+            .popOnTap()
             .glass(shape = RoundedCornerShape(GlassDefaults.TinyRadius), blurRadius = 22.dp, elevation = 10.dp)
             .padding(14.dp),
     ) {

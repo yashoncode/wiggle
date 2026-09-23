@@ -2,7 +2,6 @@ package io.wiggle.ui.glass
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,8 +39,6 @@ import io.wiggle.ui.theme.SupportsBlur
 import io.wiggle.ui.theme.WiggleColors
 import io.wiggle.ui.theme.WiggleTheme
 import kotlinx.coroutines.launch
-import kotlin.math.PI
-import kotlin.math.sin
 
 object GlassDefaults {
     val Radius: Dp = 28.dp
@@ -120,16 +117,12 @@ fun Modifier.pressScale(
     return graphicsLayer { scaleX = value; scaleY = value }
 }
 
-/** Three swings, each smaller than the last, ending exactly where the card started. */
-private fun wiggleAngle(progress: Float): Float =
-    sin(progress * WiggleSwings * 2f * PI.toFloat()) * WiggleDegrees * (1f - progress)
-
-private const val WiggleSwings = 3f
-private const val WiggleDegrees = 1.4f
-private const val WiggleMillis = 420
-
 /**
- * A short wobble when a surface is tapped, so a card that does nothing still answers a finger.
+ * A small pop when a surface is tapped, so a card that does nothing still answers a finger.
+ *
+ * The surface dips a hair and springs back past its own size, which is over in a fifth of a second.
+ * Deliberately quieter than a wobble: this fires on every card on every screen, and anything with
+ * more travel than this turns a list of cards into a fairground.
  *
  * With no [interactionSource] the modifier watches for taps itself, which is what a plain card
  * needs: it adds no click semantics, so a screen reader is not told the card is a button. Pass the
@@ -137,27 +130,37 @@ private const val WiggleMillis = 420
  * consumes the tap before a second detector could see it.
  */
 @Composable
-fun Modifier.wiggleOnTap(interactionSource: MutableInteractionSource? = null): Modifier {
+fun Modifier.popOnTap(interactionSource: MutableInteractionSource? = null): Modifier {
     val reduceMotion = LocalReduceMotion.current
-    val progress = remember { Animatable(1f) }
+    val scale = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
 
     fun play() {
         if (reduceMotion) return
         scope.launch {
-            progress.snapTo(0f)
-            progress.animateTo(1f, tween(WiggleMillis))
+            scale.snapTo(Motion.PopScale)
+            scale.animateTo(1f, Motion.pop())
         }
     }
 
+    // With a real clickable to listen to, the dip follows the finger down and springs back on
+    // release, which is the same pop with the press held open for as long as the touch lasts. This
+    // is why a tappable card does not also need pressScale: one scale layer does both jobs.
     if (interactionSource != null) {
-        LaunchedEffect(interactionSource) {
-            interactionSource.interactions.collect { if (it is PressInteraction.Release) play() }
+        LaunchedEffect(interactionSource, reduceMotion) {
+            interactionSource.interactions.collect { interaction ->
+                if (reduceMotion) return@collect
+                when (interaction) {
+                    is PressInteraction.Press -> scale.animateTo(Motion.PopScale, Motion.press())
+                    is PressInteraction.Release, is PressInteraction.Cancel ->
+                        scale.animateTo(1f, Motion.pop())
+                }
+            }
         }
     }
 
     return this
-        .graphicsLayer { rotationZ = wiggleAngle(progress.value) }
+        .graphicsLayer { scaleX = scale.value; scaleY = scale.value }
         .then(
             if (interactionSource != null) {
                 Modifier
@@ -177,7 +180,7 @@ fun GlassCard(
 ) {
     Column(
         modifier = modifier
-            .wiggleOnTap()
+            .popOnTap()
             .glass(shape = shape, elevation = elevation)
             .padding(contentPadding),
         content = content,
@@ -197,8 +200,7 @@ fun TappableGlassCard(
     val interaction = remember { MutableInteractionSource() }
     Column(
         modifier = modifier
-            .wiggleOnTap(interaction)
-            .pressScale(interaction)
+            .popOnTap(interaction)
             .glass(shape = shape)
             .clickable(
                 interactionSource = interaction,

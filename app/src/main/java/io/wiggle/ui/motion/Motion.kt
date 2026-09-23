@@ -38,6 +38,10 @@ object Motion {
     fun <T> press(): FiniteAnimationSpec<T> =
         spring(dampingRatio = 1f, stiffness = Spring.StiffnessHigh)
 
+    /** Tap feedback on a surface: quick, with a small overshoot so it reads as a pop. */
+    fun <T> pop(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = 0.42f, stiffness = Spring.StiffnessMedium)
+
     /** Value changes that must not overshoot, e.g. a progress bar or a water level. */
     fun <T> smooth(): FiniteAnimationSpec<T> =
         spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessLow)
@@ -46,6 +50,9 @@ object Motion {
     const val CardRiseDp = 16
     const val ChartDrawMillis = 900
     const val PressScale = 0.96f
+
+    /** How far a tapped surface dips before it springs back. */
+    const val PopScale = 0.97f
 
     /** Swaps any spec for a short crossfade-friendly tween when reduce motion is on. */
     fun <T> respecting(reduceMotion: Boolean, spec: FiniteAnimationSpec<T>): FiniteAnimationSpec<T> =
