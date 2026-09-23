@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -54,6 +55,9 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         lifecycleScope.launch {
             runCatching { WiggleWidget().updateAll(this@MainActivity) }
+                // Swallowed, because a widget is never worth a crash, but not silently: a widget
+                // that stays on its placeholder leaves no other trace of why.
+                .onFailure { Log.w("WiggleWidget", "Could not redraw the widget", it) }
         }
     }
 

@@ -1,6 +1,7 @@
 package io.wiggle
 
 import android.app.Application
+import android.util.Log
 import dagger.hilt.android.HiltAndroidApp
 import io.wiggle.alarm.ReminderScheduler
 import io.wiggle.data.SampleData
@@ -13,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
@@ -42,13 +44,23 @@ class WiggleApp : Application() {
      * provider also refreshes on its own timer, which covers the case where nothing here is running.
      */
     private fun keepWidgetInStepWithData() = appScope.launch {
-        combine(
+        // Everything the widget draws, including who exists at all: finishing onboarding adds the
+        // first person without touching a weight, a measurement, water or a reminder, and the
+        // widget sat on "Open Wiggle to get started" until something else happened to change.
+        val sources = listOf(
             repository.latestWeight,
             repository.bodyMeasurements,
             repository.waterOn(LocalDate.now()),
             repository.reminders,
-        ) { _, _, _, _ -> }
-            .collectLatest { runCatching { WiggleWidget().updateAll(this@WiggleApp) } }
+            repository.profiles,
+            repository.settings,
+        ).map { source -> source.map { } }
+
+        combine(sources) { }
+            .collectLatest {
+                runCatching { WiggleWidget().updateAll(this@WiggleApp) }
+                    .onFailure { Log.w("WiggleWidget", "Could not redraw the widget", it) }
+            }
     }
 
     /**

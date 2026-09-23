@@ -36,7 +36,7 @@ onboarding complete, so first-run setup only appears in release or after `pm cle
 `app/build.gradle.kts`. **Back both up.** Losing the keystore means this app can never be updated
 under the same identity. Without `keystore.properties`, `assembleRelease` still builds, unsigned.
 
-Current release: `Wiggle 1.4` (versionCode 5), published at
+Current release: `Wiggle 1.5` (versionCode 6), published at
 <https://github.com/yashoncode/wiggle/releases>. Earlier APKs are in
 `C:\Users\Yashwanth\Downloads\` (`Wiggle-1.0.apk`, `Wiggle-1.1.apk`).
 
@@ -48,7 +48,7 @@ APK is attached to it.
 ```
 ./gradlew :app:assembleRelease
 git push origin main
-git tag -a v1.5 -m "Wiggle 1.5" && git push origin v1.5
+git tag -a v1.6 -m "Wiggle 1.6" && git push origin v1.6
 ```
 
 Then create the release and attach `app/build/outputs/apk/release/app-release.apk` to it, named
@@ -146,7 +146,25 @@ them, anyone can publish a build that Android installs straight over this app.
 
 15. **Widget overview** (1.3) — see the widget entry above: the readout became today's checklist,
    several people at once, and each card logs its own water.
-16. **Background seam** (1.4) — the scrim that darkens the lower screen was drawn as a rectangle
+16. **R8 full mode broke the widget** (1.5) — the release build, and only the release build, never
+   drew the widget: the launcher kept the initial layout for ever. `dumpsys appwidget` showed the
+   widget with no `views=` at all, and no `appWidget-<id>.preferences_pb` beside the app's own
+   DataStore files, so Glance had never composed. The receiver ran and `onUpdate` returned, but the
+   coroutine it starts died before `provideGlance`, silently: nothing in logcat, no crash. The cause
+   is R8 **full mode**, which AGP turns on by default and which drops assumptions Glance depends on.
+   `android.enableR8.fullMode=false` in `gradle.properties` fixes it; keeping `io.wiggle.widget.**`
+   fixes a second, related trap, because Glance saves the GlanceAppWidget's *class name* in its own
+   DataStore and R8 picks a new name on every build, so after an app update `updateAll` finds no
+   widgets and returns without an error.
+
+   To debug this again: `adb shell dumpsys appwidget` (does the widget have `views=`?),
+   `adb shell ls /data/data/io.wiggle/files/datastore` (did Glance compose?), and
+   `adb shell am broadcast -a android.appwidget.action.APPWIDGET_UPDATE -n io.wiggle/io.wiggle.widget.WiggleWidgetReceiver --eia appWidgetIds <id>`
+   to force an update without touching the launcher. `adb root` first, for the data directory.
+17. **Header gutter** (1.5) — `ScreenHeader` spaced its title and its buttons with `SpaceBetween`,
+   which gives no gap at all once the title takes the slack through its weight, so a long name ran
+   straight into the + button. It is a 12dp gutter now.
+18. **Background seam** (1.4) — the scrim that darkens the lower screen was drawn as a rectangle
    starting at 0.6 of the height with a `verticalGradient` from transparent. A gradient brush is
    laid out in canvas coordinates, not in the coordinates of the rectangle it fills, so the whole
    fade landed *above* the rectangle and the rectangle painted flat: a hard horizontal line across
@@ -166,6 +184,8 @@ them, anyone can publish a build that Android installs straight over this app.
 - The app downloads an update through the browser rather than installing it itself. Doing that
   in-app needs `REQUEST_INSTALL_PACKAGES`, a `DownloadManager` job and an installer intent.
 - A dismissed update is offered again on the next launch; there is no "skip this version".
+- The release build is minified and the debug build is not, so a widget that works in debug proves
+  nothing about the shipped APK. Check the widget on a release install before publishing.
 - 1.3 shipped twice: the widget fix was rebuilt into the same version, so devices already on 1.3
   were never offered it by the in-app check, which compares version *names*. Anything that has to
   reach an installed phone needs a version bump, not a replaced asset.

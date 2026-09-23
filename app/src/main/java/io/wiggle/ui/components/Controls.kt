@@ -74,7 +74,9 @@ fun ScreenHeader(
     Row(
         modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.SpaceBetween,
+        // A gutter rather than SpaceBetween: the title already takes the slack through its weight,
+        // so SpaceBetween left no gap at all and a long name ran straight into the first button.
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(Modifier.weight(1f)) {
             Text(
@@ -97,7 +99,7 @@ fun ScreenHeader(
             )
         }
         Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
             content = trailing,
         )
