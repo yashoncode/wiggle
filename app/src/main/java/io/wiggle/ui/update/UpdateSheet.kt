@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.wiggle.domain.AppRelease
+import io.wiggle.domain.Updates
 import io.wiggle.ui.components.PrimaryButton
 import io.wiggle.ui.glass.GlassSheet
 import io.wiggle.ui.icons.Icon
@@ -77,7 +78,7 @@ fun BoxScope.UpdateSheet(
         Spacer(Modifier.height(6.dp))
         Text(
             if (release.notes.isBlank()) "A new build is ready to install."
-            else release.notes,
+            else Updates.plainNotes(release.notes),
             style = MaterialTheme.typography.bodySmall,
             color = colors.inkMuted,
             modifier = Modifier

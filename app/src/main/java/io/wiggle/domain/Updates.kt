@@ -36,6 +36,23 @@ object Updates {
         return false
     }
 
+    /**
+     * Release notes are written in GitHub Markdown, and the sheet draws plain text, so the markup
+     * has to come off or it is read out as asterisks.
+     */
+    fun plainNotes(markdown: String): String = markdown
+        .lineSequence()
+        .map { line ->
+            line.trimEnd()
+                .removePrefix("#").removePrefix("#").removePrefix("#").trimStart()
+                .replace("**", "")
+                .replace("`", "")
+                .let { if (it.startsWith("- ") || it.startsWith("* ")) "• " + it.drop(2) else it }
+        }
+        .joinToString("\n")
+        .replace(Regex("\n{3,}"), "\n\n")
+        .trim()
+
     private fun parts(version: String): List<Int> =
         version.trim().trimStart('v', 'V').substringBefore('-')
             .split('.')

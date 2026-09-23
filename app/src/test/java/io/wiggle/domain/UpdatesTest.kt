@@ -1,5 +1,6 @@
 package io.wiggle.domain
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -36,6 +37,12 @@ class UpdatesTest {
     fun `a debug build compares as its release version`() {
         assertTrue(Updates.isNewer("v1.3", "1.2-debug"))
         assertFalse(Updates.isNewer("v1.2", "1.2-debug"))
+    }
+
+    @Test
+    fun `release notes lose their markdown`() {
+        val notes = Updates.plainNotes("## Fixes\n\n**Bold** thing\n- a bullet\n")
+        assertEquals("Fixes\n\nBold thing\n• a bullet", notes)
     }
 
     @Test
