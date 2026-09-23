@@ -6,7 +6,7 @@ Android body-weight tracker. iOS-style frosted glass UI. Package `io.wiggle` (`i
 
 Gradle 9.6.1 · AGP 9.3.1 · Kotlin 2.4.10 (AGP built-in — **do not** add `org.jetbrains.kotlin.android`)
 · KSP 2.3.11 · `compose-bom-alpha` 2026.08.00 · compileSdk 37 / targetSdk 36 / minSdk 26
-· Room 2.8.4 · Hilt 2.60.1 · Haze 1.7.3 · Glance 1.1.1 · DataStore **1.1.1** (1.2.1 breaks on Windows).
+· Room 2.8.4 · Hilt 2.60.1 · Haze 1.7.3 · Glance 1.2.0 · DataStore **1.1.1** (1.2.1 breaks on Windows).
 
 Root `build.gradle.kts` needs `classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:…")` for the
 `kotlin { compilerOptions { } }` DSL to resolve under AGP 9.
@@ -16,7 +16,7 @@ Root `build.gradle.kts` needs `classpath("org.jetbrains.kotlin:kotlin-gradle-plu
 ```
 ./gradlew :app:assembleDebug
 ./gradlew :app:assembleRelease          # signed, minified, ~2.6 MB
-./gradlew :app:testDebugUnitTest        # 45 tests
+./gradlew :app:testDebugUnitTest        # 53 tests
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n io.wiggle.debug/io.wiggle.MainActivity
 ```
@@ -36,7 +36,7 @@ onboarding complete, so first-run setup only appears in release or after `pm cle
 `app/build.gradle.kts`. **Back both up.** Losing the keystore means this app can never be updated
 under the same identity. Without `keystore.properties`, `assembleRelease` still builds, unsigned.
 
-Current release: `Wiggle 1.2` (versionCode 3), published at
+Current release: `Wiggle 1.3` (versionCode 4), published at
 <https://github.com/yashoncode/wiggle/releases>. Earlier APKs are in
 `C:\Users\Yashwanth\Downloads\` (`Wiggle-1.0.apk`, `Wiggle-1.1.apk`).
 
@@ -48,7 +48,7 @@ APK is attached to it.
 ```
 ./gradlew :app:assembleRelease
 git push origin main
-git tag -a v1.3 -m "Wiggle 1.3" && git push origin v1.3
+git tag -a v1.4 -m "Wiggle 1.4" && git push origin v1.4
 ```
 
 Then create the release and attach `app/build/outputs/apk/release/app-release.apk` to it, named
@@ -74,7 +74,8 @@ them, anyone can publish a build that Android installs straight over this app.
    Sora/Manrope variable fonts, self-drawn Lucide icons, liquid-stretch tab bar, dark and light
    themes, theme mode follows the system by default (Settings → Appearance).
 2. **Data layer** — Room v2, every table carries `profileId` (multi-account). `Stats`, `BulkParse`,
-   `WaterCoach`, `Greeting`, `Csv` and `Updates` are pure Kotlin: **45 unit tests, all passing**.
+   `WaterCoach`, `Greeting`, `Csv`, `Updates` and `TodayOverview` are pure Kotlin:
+   **53 unit tests, all passing**.
 3. **Today + log sheet** — greeting header ("Good evening, Yash", auto-shrinking to one line),
    hero card, rolling digits, water ring, BMI, "Up next"; the plus opens a quick-add sheet
    (weight / body / water); ruler wheel with haptics; confetti.
@@ -103,10 +104,18 @@ them, anyone can publish a build that Android installs straight over this app.
    `cacheDir/export` and hands them to the share sheet through a FileProvider. `Csv` is pure and
    tested, and the weight file is written in the shape `BulkParse` already reads, so an export
    imports straight back.
-11. **Glance widget** (1.1) — 3x2 home-screen readout: name, latest weight, weekly rate, water
-   against the goal, and a +250 ml button that logs without opening anything. Tapping the body
-   opens the app. Refreshed by `WiggleApp` when the data changes, with the provider's own
-   30-minute timer as a backstop.
+11. **Glance widget** (1.1, rebuilt in 1.3) — a 3x3 readout of today, one card per person in a
+   list the widget scrolls: weigh-in and measurements marked done, due or idle, then water against
+   the goal with a bar, how much is left, and a +250 ml button that logs to *that* person without
+   opening anything. `TodayOverview` decides done/due/idle and is tested. Refreshed by `WiggleApp`
+   when weight, body, water or reminders change, with the provider's 30-minute timer as a backstop.
+   A widget cannot page sideways, so the list scrolls instead.
+
+   Two traps live here. **A Glance container holds at most ten children**; go over and the whole
+   translation throws and the widget sits on its loading layout for good, which is why a card is
+   three nested blocks spaced with padding rather than a flat run of Spacers. And `provideGlance`
+   loads under `withTimeout` inside a `runCatching`, so a slow or failing read still reaches
+   `provideContent` and draws something tappable instead of spinning.
 12. **Accessibility** (1.1) — rolling digits read as one number instead of digit by digit, screen
    titles are headings, both charts carry a spoken summary, the undo snackbar is a polite live
    region, and the light theme's faintest ink went from 2.9:1 to 4.5:1 against its canvas.
@@ -125,6 +134,9 @@ them, anyone can publish a build that Android installs straight over this app.
    `rememberUpdatedState`: keying their `pointerInput` on the lambda tore the gesture down mid-press,
    stranding the press highlight and leaving the repeat loop counting from a stale value.
 
+15. **Widget overview** (1.3) — see the widget entry above: the readout became today's checklist,
+   several people at once, and each card logs its own water.
+
 ## Remaining
 
 - **Health Connect** — read and write weight. Never wired up.
@@ -139,4 +151,6 @@ them, anyone can publish a build that Android installs straight over this app.
 - A dismissed update is offered again on the next launch; there is no "skip this version".
 - Tag `v1.2` sits one commit before `Render release notes as plain text`, which is in the released
   APK. Moving a published tag needed a force push, so the tag was left where it was.
+- The widget shows the loading layout for as long as the launcher takes to start the app process
+  after an install, which on a cold device is tens of seconds. Nothing in the app can shorten it.
 - Health Connect dependency is not in the Gradle cache; it will download on first use.

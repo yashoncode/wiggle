@@ -42,7 +42,12 @@ class WiggleApp : Application() {
      * provider also refreshes on its own timer, which covers the case where nothing here is running.
      */
     private fun keepWidgetInStepWithData() = appScope.launch {
-        combine(repository.latestWeight, repository.waterOn(LocalDate.now())) { _, _ -> }
+        combine(
+            repository.latestWeight,
+            repository.bodyMeasurements,
+            repository.waterOn(LocalDate.now()),
+            repository.reminders,
+        ) { _, _, _, _ -> }
             .collectLatest { runCatching { WiggleWidget().updateAll(this@WiggleApp) } }
     }
 

@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Two cells by two. Periodic refresh is a backstop; the app pushes an update when it writes. -->
+<!-- Three cells by three: the overview needs the height. Periodic refresh is a backstop;
+     the app pushes an update whenever it writes something the widget shows. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="180dp"
-    android:minHeight="110dp"
+    android:minHeight="180dp"
     android:targetCellWidth="3"
-    android:targetCellHeight="2"
+    android:targetCellHeight="3"
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/glance_default_loading_layout"
     android:resizeMode="horizontal|vertical"

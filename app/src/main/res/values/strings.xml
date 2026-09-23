@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Wiggle</string>
-    <string name="widget_description">Weight and water, at a glance.</string>
+    <string name="widget_description">Today at a glance: what is logged, what is waiting, and the water left to drink.</string>
 </resources>
