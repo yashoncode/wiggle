@@ -16,7 +16,7 @@ Root `build.gradle.kts` needs `classpath("org.jetbrains.kotlin:kotlin-gradle-plu
 ```
 ./gradlew :app:assembleDebug
 ./gradlew :app:assembleRelease          # signed, minified, ~2.6 MB
-./gradlew :app:testDebugUnitTest        # 38 tests
+./gradlew :app:testDebugUnitTest        # 45 tests
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n io.wiggle.debug/io.wiggle.MainActivity
 ```
@@ -36,8 +36,35 @@ onboarding complete, so first-run setup only appears in release or after `pm cle
 `app/build.gradle.kts`. **Back both up.** Losing the keystore means this app can never be updated
 under the same identity. Without `keystore.properties`, `assembleRelease` still builds, unsigned.
 
-Current release: `Wiggle 1.1` (versionCode 2). 1.0 (versionCode 1) is still at
-`C:\Users\Yashwanth\Downloads\Wiggle-1.0.apk`.
+Current release: `Wiggle 1.2` (versionCode 3), published at
+<https://github.com/yashoncode/wiggle/releases>. Earlier APKs are in
+`C:\Users\Yashwanth\Downloads\` (`Wiggle-1.0.apk`, `Wiggle-1.1.apk`).
+
+## Publishing a release
+
+The app looks for new builds on the GitHub releases page, so a release is not finished until the
+APK is attached to it.
+
+```
+./gradlew :app:assembleRelease
+git push origin main
+git tag -a v1.3 -m "Wiggle 1.3" && git push origin v1.3
+```
+
+Then create the release and attach `app/build/outputs/apk/release/app-release.apk` to it, named
+`Wiggle-<version>.apk`. The GitHub CLI is not installed on this machine; the REST API works with
+the credential Git already has:
+
+```
+GHTOK=$(printf "protocol=https\nhost=github.com\n\n" | git credential fill | sed -n 's/^password=//p')
+```
+
+`POST /repos/yashoncode/wiggle/releases` creates it, then POST the APK to the `upload_url` it
+returns with `Content-Type: application/vnd.android.package-archive`. The
+`GITHUB_PERSONAL_ACCESS_TOKEN` in the environment is read-only for contents and cannot do either.
+
+**Never commit `keystore.properties` or `wiggle-release.jks`.** Both are in `.gitignore`; with
+them, anyone can publish a build that Android installs straight over this app.
 
 ## Done — each compiles, installs and runs
 
@@ -47,7 +74,7 @@ Current release: `Wiggle 1.1` (versionCode 2). 1.0 (versionCode 1) is still at
    Sora/Manrope variable fonts, self-drawn Lucide icons, liquid-stretch tab bar, dark and light
    themes, theme mode follows the system by default (Settings → Appearance).
 2. **Data layer** — Room v2, every table carries `profileId` (multi-account). `Stats`, `BulkParse`,
-   `WaterCoach`, `Greeting` and `Csv` are pure Kotlin: **38 unit tests, all passing**.
+   `WaterCoach`, `Greeting`, `Csv` and `Updates` are pure Kotlin: **45 unit tests, all passing**.
 3. **Today + log sheet** — greeting header ("Good evening, Yash", auto-shrinking to one line),
    hero card, rolling digits, water ring, BMI, "Up next"; the plus opens a quick-add sheet
    (weight / body / water); ruler wheel with haptics; confetti.
@@ -86,6 +113,18 @@ Current release: `Wiggle 1.1` (versionCode 2). 1.0 (versionCode 1) is still at
    Material's ripple is switched off app-wide (`LocalIndication`, provided *inside* `MaterialTheme`,
    which re-provides its own): it drew a grey rectangle around pill toggles and glass rows.
 
+13. **In-app updates** (1.2) — `UpdateChecker` reads the latest GitHub release on launch and the
+   sheet offers it, with the release notes stripped of their Markdown and a button that hands the
+   APK to the browser. Settings has a manual check that also answers "you are on the latest".
+   `HttpURLConnection` and `org.json`, because one unauthenticated GET is not worth an HTTP stack
+   in the APK. A failed check is silent: no network is not news.
+
+14. **Feel** (1.2) — tapping a card gives it a short damped wobble (`Modifier.wiggleOnTap`), which
+   is how a surface with nothing behind it still answers a finger; it adds no click semantics, so
+   a screen reader is not told a static card is a button. The −/+ steppers were rebuilt around
+   `rememberUpdatedState`: keying their `pointerInput` on the lambda tore the gesture down mid-press,
+   stranding the press highlight and leaving the repeat loop counting from a stale value.
+
 ## Remaining
 
 - **Health Connect** — read and write weight. Never wired up.
@@ -95,5 +134,9 @@ Current release: `Wiggle 1.1` (versionCode 2). 1.0 (versionCode 1) is still at
 
 ## Known gaps
 
-- Not a git repository yet.
+- The app downloads an update through the browser rather than installing it itself. Doing that
+  in-app needs `REQUEST_INSTALL_PACKAGES`, a `DownloadManager` job and an installer intent.
+- A dismissed update is offered again on the next launch; there is no "skip this version".
+- Tag `v1.2` sits one commit before `Render release notes as plain text`, which is in the released
+  APK. Moving a published tag needed a force push, so the tag was left where it was.
 - Health Connect dependency is not in the Gradle cache; it will download on first use.
