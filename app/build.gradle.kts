@@ -23,8 +23,8 @@ android {
         applicationId = "io.wiggle"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.5"
+        versionCode = 7
+        versionName = "2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -145,6 +145,9 @@ dependencies {
     implementation(libs.androidx.glance.material3)
 
     implementation(libs.haze)
+
+    implementation(libs.androidx.health.connect)
+    implementation(libs.play.services.code.scanner)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

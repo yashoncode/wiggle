@@ -1,6 +1,9 @@
 package io.wiggle.data
 
 import io.wiggle.data.db.BodyMeasurementEntity
+import io.wiggle.data.db.Meal
+import io.wiggle.data.db.MedicationEntity
+import io.wiggle.domain.Food
 import io.wiggle.data.db.ReminderKind
 import io.wiggle.data.db.Sex
 import java.time.LocalDate
@@ -31,6 +34,8 @@ object SampleData {
         seedWeights(repo, yashId, today, zone, random, startKg = 80.0, endKg = 72.4, days = 120)
         seedBody(repo, yashId, today, zone)
         seedWater(repo, yashId, today, zone, random, goalMl = 2500)
+        seedFood(repo, yashId, today, zone)
+        seedTablets(repo, yashId)
 
         // A second person, so the profile switcher has something to switch to.
         val partnerId = repo.createProfile(
@@ -151,5 +156,35 @@ object SampleData {
                 hour += 1 + random.nextInt(2)
             }
         }
+    }
+
+    /** A week of meals, with today stopped before dinner so the Calories screen has a gap to show. */
+    private suspend fun seedFood(repo: WiggleRepository, profileId: Long, today: LocalDate, zone: ZoneId) {
+        fun food(name: String, kcal: Double, p: Double, c: Double, f: Double, label: String, grams: Double) =
+            Food(name, kcal, p, c, f, label, grams, source = "IN")
+        val oats = food("Oats porridge", 110.0, 4.0, 18.0, 2.5, "1 bowl", 250.0)
+        val banana = food("Banana", 89.0, 1.1, 22.8, 0.3, "1 medium", 118.0)
+        val chapati = food("Chapati", 297.0, 9.0, 51.0, 7.0, "1 chapati", 40.0)
+        val dal = food("Toor dal", 120.0, 7.0, 16.0, 3.0, "1 katori", 150.0)
+        val rice = food("Rice, cooked", 130.0, 2.7, 28.0, 0.3, "1 cup", 158.0)
+        val curd = food("Curd", 60.0, 3.1, 4.7, 3.3, "1 katori", 100.0)
+        val paneer = food("Paneer tikka", 265.0, 18.0, 5.0, 19.0, "1 plate", 100.0)
+        for (offset in 7 downTo 0) {
+            val date = today.minusDays(offset.toLong())
+            fun at(hour: Int) = date.atTime(hour, 15).atZone(zone).toInstant().toEpochMilli()
+            repo.addFoods(profileId, Meal.Breakfast, listOf(oats to 1.0, banana to 1.0), at(8))
+            repo.addFoods(profileId, Meal.Lunch, listOf(chapati to 2.0, dal to 1.0, curd to 1.0), at(13))
+            repo.addFoods(profileId, Meal.Snacks, listOf(banana to 1.0), at(17))
+            if (offset > 0) repo.addFoods(profileId, Meal.Dinner, listOf(rice to 1.0, paneer to 1.0), at(20))
+        }
+    }
+
+    private suspend fun seedTablets(repo: WiggleRepository, profileId: Long) {
+        listOf(
+            MedicationEntity(profileId = profileId, name = "Multivitamin", note = "after breakfast", times = "510", colorIndex = 0),
+            MedicationEntity(profileId = profileId, name = "Omega-3", note = "with food", times = "510", stock = 6, colorIndex = 1),
+            MedicationEntity(profileId = profileId, name = "Iron", note = "after lunch", times = "840", colorIndex = 2),
+            MedicationEntity(profileId = profileId, name = "Vitamin D3", note = "after dinner", times = "1230", colorIndex = 3),
+        ).forEach { repo.saveMedication(it) }
     }
 }

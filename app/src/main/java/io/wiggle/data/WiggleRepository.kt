@@ -5,6 +5,14 @@ import io.wiggle.data.db.BodyMeasurementEntity
 import io.wiggle.data.db.CustomMeasureDao
 import io.wiggle.data.db.CustomMeasureTypeEntity
 import io.wiggle.data.db.CustomMeasurementValueEntity
+import io.wiggle.data.db.DoseLogEntity
+import io.wiggle.data.db.FoodDao
+import io.wiggle.data.db.FoodEntryEntity
+import io.wiggle.data.db.Meal
+import io.wiggle.data.db.MedicationDao
+import io.wiggle.data.db.MedicationEntity
+import io.wiggle.data.db.SavedFoodDao
+import io.wiggle.data.db.SavedFoodEntity
 import io.wiggle.data.db.ProfileDao
 import io.wiggle.data.db.ProfileEntity
 import io.wiggle.data.db.ReminderDao
@@ -17,6 +25,8 @@ import io.wiggle.data.db.WeightDao
 import io.wiggle.data.db.WeightEntryEntity
 import io.wiggle.data.prefs.Settings
 import io.wiggle.data.prefs.SettingsStore
+import io.wiggle.domain.Food
+import io.wiggle.domain.ReminderSchedule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -52,6 +62,9 @@ class WiggleRepository @Inject constructor(
     private val waterDao: WaterDao,
     private val reminderDao: ReminderDao,
     private val customMeasureDao: CustomMeasureDao,
+    private val foodDao: FoodDao,
+    private val savedFoodDao: SavedFoodDao,
+    private val medicationDao: MedicationDao,
     private val settingsStore: SettingsStore,
 ) {
     val settings: Flow<Settings> = settingsStore.settings
@@ -119,6 +132,46 @@ class WiggleRepository @Inject constructor(
         }
     }
 
+    /** Food logged inside [date]'s local calendar day, oldest first. */
+    fun foodOn(date: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Flow<List<FoodEntryEntity>> =
+        foodBetween(date, date.plusDays(1), zone)
+
+    fun foodBetween(
+        from: LocalDate,
+        toExclusive: LocalDate,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Flow<List<FoodEntryEntity>> {
+        val start = from.atStartOfDay(zone).toInstant().toEpochMilli()
+        val end = toExclusive.atStartOfDay(zone).toInstant().toEpochMilli()
+        return activeProfileId.flatMapLatest { id ->
+            if (id == 0L) flowOf(emptyList()) else foodDao.observeBetween(id, start, end)
+        }
+    }
+
+    /** Distinct foods this person logged lately, newest first, ready to add again. */
+    val recentFoods: Flow<List<Food>> =
+        activeProfileId.flatMapLatest { id ->
+            if (id == 0L) flowOf(emptyList()) else foodDao.observeRecent(id)
+        }.map { entries -> entries.map { it.toFood() }.distinctBy { it.key }.take(30) }
+
+    val savedFoods: Flow<List<SavedFoodEntity>> =
+        activeProfileId.flatMapLatest { id ->
+            if (id == 0L) flowOf(emptyList()) else savedFoodDao.observeAll(id)
+        }
+
+    val medications: Flow<List<MedicationEntity>> =
+        activeProfileId.flatMapLatest { id ->
+            if (id == 0L) flowOf(emptyList()) else medicationDao.observeAll(id)
+        }
+
+    /** Every medication for every person, which is what the dose alarms mirror. */
+    val allMedications: Flow<List<MedicationEntity>> = medicationDao.observeEvery()
+
+    fun dosesOn(date: LocalDate): Flow<List<DoseLogEntity>> =
+        activeProfileId.flatMapLatest { id ->
+            if (id == 0L) flowOf(emptyList()) else medicationDao.observeDosesOn(id, date.toEpochDay())
+        }
+
     // --- Profiles ----------------------------------------------------------------------------
 
     suspend fun createProfile(
@@ -165,35 +218,7 @@ class WiggleRepository @Inject constructor(
     }
 
     private suspend fun seedDefaultReminders(profileId: Long) {
-        reminderDao.upsert(
-            ReminderEntity(
-                profileId = profileId,
-                kind = ReminderKind.WeighIn,
-                enabled = false,
-                timeMinutes = 7 * 60,
-            )
-        )
-        reminderDao.upsert(
-            ReminderEntity(
-                profileId = profileId,
-                kind = ReminderKind.Measurements,
-                enabled = false,
-                timeMinutes = 8 * 60,
-                // Sunday only.
-                daysMask = 1 shl 6,
-                everyNWeeks = 1,
-            )
-        )
-        reminderDao.upsert(
-            ReminderEntity(
-                profileId = profileId,
-                kind = ReminderKind.Water,
-                enabled = false,
-                timeMinutes = 8 * 60,
-                intervalMinutes = 120,
-                untilMinutes = 22 * 60,
-            )
-        )
+        ReminderKind.entries.forEach { reminderDao.upsert(defaultReminder(profileId, it)) }
     }
 
     // --- Weight ------------------------------------------------------------------------------
@@ -244,7 +269,9 @@ class WiggleRepository @Inject constructor(
 
     suspend fun setHapticsEnabled(value: Boolean) = settingsStore.setHapticsEnabled(value)
 
-    suspend fun setHealthConnectEnabled(value: Boolean) = settingsStore.setHealthConnectEnabled(value)
+    suspend fun setReduceMotion(value: Boolean) = settingsStore.setReduceMotion(value)
+
+    suspend fun setStepsProfile(id: Long) = settingsStore.setStepsProfile(id)
 
     suspend fun deleteWeight(id: Long) = weightDao.deleteById(id)
 
@@ -327,6 +354,101 @@ class WiggleRepository @Inject constructor(
 
     suspend fun lastWaterLoggedAt(profileId: Long): Long? = waterDao.lastLoggedAt(profileId)
 
+    // --- Food --------------------------------------------------------------------------------
+
+    /** Logs several foods to one meal at once, as the add sheet saves them. */
+    suspend fun addFoods(
+        profileId: Long,
+        meal: Meal,
+        items: List<Pair<Food, Double>>,
+        at: Long = System.currentTimeMillis(),
+    ) = foodDao.insertAll(
+        items.map { (food, servings) ->
+            FoodEntryEntity(
+                profileId = profileId,
+                loggedAt = at,
+                meal = meal,
+                name = food.name,
+                source = food.source,
+                kcal100 = food.kcal100,
+                protein100 = food.protein100,
+                carbs100 = food.carbs100,
+                fat100 = food.fat100,
+                servingLabel = food.servingLabel,
+                servingG = food.servingG,
+                servings = servings,
+            )
+        }
+    )
+
+    suspend fun deleteFood(id: Long) = foodDao.deleteById(id)
+
+    suspend fun restoreFood(entry: FoodEntryEntity) = foodDao.insertAll(listOf(entry))
+
+    suspend fun mealLogged(profileId: Long, meal: Meal, zone: ZoneId = ZoneId.systemDefault()): Boolean {
+        val today = LocalDate.now(zone)
+        val from = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val to = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        return foodDao.countForMeal(profileId, meal, from, to) > 0
+    }
+
+    /** Stars or unstars a food. A food you made stays in My foods either way. */
+    suspend fun toggleFavorite(profileId: Long, food: Food) {
+        val existing = savedFoodDao.find(profileId, food.name, food.source)
+        when {
+            existing == null -> savedFoodDao.insert(food.toSaved(profileId, favorite = true, custom = false))
+            existing.custom || !existing.favorite ->
+                savedFoodDao.update(existing.copy(favorite = !existing.favorite))
+            else -> savedFoodDao.deleteById(existing.id)
+        }
+    }
+
+    suspend fun saveCustomFood(profileId: Long, food: Food) {
+        savedFoodDao.insert(food.copy(source = "MY").toSaved(profileId, favorite = false, custom = true))
+    }
+
+    suspend fun deleteSavedFood(id: Long) = savedFoodDao.deleteById(id)
+
+    // --- Tablets -----------------------------------------------------------------------------
+
+    suspend fun saveMedication(medication: MedicationEntity) {
+        if (medication.id == 0L) medicationDao.insert(medication) else medicationDao.update(medication)
+    }
+
+    suspend fun deleteMedication(id: Long) = medicationDao.deleteById(id)
+
+    suspend fun medication(id: Long): MedicationEntity? = medicationDao.get(id)
+
+    suspend fun everyMedication(): List<MedicationEntity> = medicationDao.all()
+
+    suspend fun doseTaken(medicationId: Long, day: LocalDate, slotMinutes: Int): Boolean =
+        medicationDao.countDose(medicationId, day.toEpochDay(), slotMinutes) > 0
+
+    /**
+     * Ticks a dose off, or back on. Counted stock moves with it, so untaking a dose tapped by
+     * mistake puts the tablet back.
+     */
+    suspend fun setDoseTaken(medicationId: Long, day: LocalDate, slotMinutes: Int, taken: Boolean) {
+        val medication = medicationDao.get(medicationId) ?: return
+        val changed = if (taken) {
+            medicationDao.insertDose(
+                DoseLogEntity(
+                    medicationId = medicationId,
+                    day = day.toEpochDay(),
+                    slotMinutes = slotMinutes,
+                    takenAt = System.currentTimeMillis(),
+                )
+            ) != -1L
+        } else {
+            medicationDao.deleteDose(medicationId, day.toEpochDay(), slotMinutes) > 0
+        }
+        val stock = medication.stock
+        if (changed && stock != null) {
+            val delta = if (taken) -medication.perDose else medication.perDose
+            medicationDao.update(medication.copy(stock = (stock + delta).coerceAtLeast(0)))
+        }
+    }
+
     // --- Reminders ---------------------------------------------------------------------------
 
     /** Every reminder row in the database, which is what the alarm scheduler mirrors. */
@@ -360,6 +482,104 @@ class WiggleRepository @Inject constructor(
         weightDao.deleteAllFor(profileId)
         bodyDao.deleteAllFor(profileId)
         waterDao.deleteAllFor(profileId)
+        foodDao.deleteAllFor(profileId)
+        medicationDao.deleteDosesFor(profileId)
         profileDao.get(profileId)?.let { profileDao.update(it.copy(startWeightKg = null)) }
     }
 }
+
+/** A reminder row as it is before anyone has touched it: off, at a sensible time. */
+fun defaultReminder(profileId: Long, kind: ReminderKind) = when (kind) {
+    ReminderKind.WeighIn -> ReminderEntity(
+        profileId = profileId,
+        kind = kind,
+        enabled = false,
+        timeMinutes = 7 * 60,
+    )
+
+    ReminderKind.Measurements -> ReminderEntity(
+        profileId = profileId,
+        kind = kind,
+        enabled = false,
+        timeMinutes = 8 * 60,
+        // Sunday only.
+        daysMask = 1 shl 6,
+    )
+
+    ReminderKind.Water -> ReminderEntity(
+        profileId = profileId,
+        kind = kind,
+        enabled = false,
+        timeMinutes = 8 * 60,
+        intervalMinutes = 120,
+        untilMinutes = 22 * 60,
+    )
+
+    ReminderKind.Meals -> ReminderEntity(
+        profileId = profileId,
+        kind = kind,
+        enabled = false,
+        timeMinutes = ReminderSchedule.DefaultMealTimes.first(),
+        times = ReminderSchedule.DefaultMealTimes.joinToString(","),
+    )
+
+    // Checked hourly in a nine-to-eight window; the receiver stays quiet after an active hour.
+    ReminderKind.Move -> ReminderEntity(
+        profileId = profileId,
+        kind = kind,
+        enabled = false,
+        timeMinutes = 9 * 60,
+        intervalMinutes = 60,
+        untilMinutes = 20 * 60,
+    )
+
+    // Each tablet carries its own times; this row is the switch and how often to repeat.
+    ReminderKind.Tablets -> ReminderEntity(
+        profileId = profileId,
+        kind = kind,
+        enabled = false,
+        timeMinutes = 0,
+        intervalMinutes = 15,
+    )
+}
+
+fun FoodEntryEntity.toFood() = Food(
+    name = name,
+    kcal100 = kcal100,
+    protein100 = protein100,
+    carbs100 = carbs100,
+    fat100 = fat100,
+    servingLabel = servingLabel,
+    servingG = servingG,
+    source = source,
+)
+
+fun SavedFoodEntity.toFood() = Food(
+    name = name,
+    kcal100 = kcal100,
+    protein100 = protein100,
+    carbs100 = carbs100,
+    fat100 = fat100,
+    servingLabel = servingLabel,
+    servingG = servingG,
+    source = source,
+)
+
+private fun Food.toSaved(profileId: Long, favorite: Boolean, custom: Boolean) = SavedFoodEntity(
+    profileId = profileId,
+    name = name,
+    source = source,
+    kcal100 = kcal100,
+    protein100 = protein100,
+    carbs100 = carbs100,
+    fat100 = fat100,
+    servingLabel = servingLabel,
+    servingG = servingG,
+    favorite = favorite,
+    custom = custom,
+)
+
+val FoodEntryEntity.kcal: Int get() = toFood().kcal(servings)
+val FoodEntryEntity.proteinG: Double get() = toFood().protein(servings)
+val FoodEntryEntity.carbsG: Double get() = toFood().carbs(servings)
+val FoodEntryEntity.fatG: Double get() = toFood().fat(servings)

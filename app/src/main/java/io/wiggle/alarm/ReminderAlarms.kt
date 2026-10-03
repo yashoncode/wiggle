@@ -6,8 +6,10 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.wiggle.data.db.MedicationEntity
 import io.wiggle.data.db.ReminderEntity
 import io.wiggle.data.db.ReminderKind
+import io.wiggle.domain.Doses
 import io.wiggle.domain.ReminderSchedule
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -19,16 +21,26 @@ object Alarms {
     const val ACTION_FIRE = "io.wiggle.action.FIRE"
     const val ACTION_SNOOZE = "io.wiggle.action.SNOOZE"
     const val ACTION_ADD_WATER = "io.wiggle.action.ADD_WATER"
+    const val ACTION_DOSE = "io.wiggle.action.DOSE"
+    const val ACTION_DOSE_TAKEN = "io.wiggle.action.DOSE_TAKEN"
 
     const val EXTRA_PROFILE_ID = "profileId"
     const val EXTRA_KIND = "kind"
     const val EXTRA_AMOUNT_ML = "amountMl"
+    const val EXTRA_MEDICATION_ID = "medicationId"
+    const val EXTRA_SLOT = "slot"
 
     /** Where a notification tap should land in the app. Read by MainActivity. */
     const val EXTRA_OPEN = "io.wiggle.extra.OPEN"
     const val OPEN_WEIGHT = "weight"
     const val OPEN_BODY = "body"
     const val OPEN_WATER = "water"
+    const val OPEN_FOOD = "food"
+    const val OPEN_STEPS = "steps"
+    const val OPEN_TABLETS = "tablets"
+
+    /** Most dose times one tablet can have; each gets its own alarm slot. */
+    const val MAX_DOSE_SLOTS = 8
 
     const val SNOOZE_MINUTES = 30
 
@@ -36,6 +48,9 @@ object Alarms {
         ReminderKind.WeighIn -> OPEN_WEIGHT
         ReminderKind.Measurements -> OPEN_BODY
         ReminderKind.Water -> OPEN_WATER
+        ReminderKind.Meals -> OPEN_FOOD
+        ReminderKind.Move -> OPEN_STEPS
+        ReminderKind.Tablets -> OPEN_TABLETS
     }
 }
 
@@ -52,9 +67,48 @@ class ReminderScheduler @Inject constructor(
     private val alarmManager: AlarmManager,
 ) {
 
-    /** Arms every enabled reminder and clears the rest. Safe to call repeatedly. */
-    fun sync(reminders: List<ReminderEntity>) {
+    /**
+     * Arms every enabled reminder and clears the rest, then does the same for every tablet dose,
+     * which only rings while that person's Tablets reminder is on. Safe to call repeatedly.
+     */
+    fun sync(reminders: List<ReminderEntity>, medications: List<MedicationEntity>) {
         reminders.forEach { if (it.enabled) schedule(it) else cancel(it) }
+        val tabletsOn = reminders.filter { it.kind == ReminderKind.Tablets && it.enabled }
+            .mapTo(HashSet()) { it.profileId }
+        medications.forEach { medication ->
+            val times = Doses.parseTimes(medication.times)
+            for (index in 0 until Alarms.MAX_DOSE_SLOTS) {
+                val slot = times.getOrNull(index)
+                if (slot != null && medication.profileId in tabletsOn) {
+                    val at = Doses.nextAlarm(slot, LocalDateTime.now(), takenToday = true, repeatMinutes = 0)
+                    scheduleDose(medication.id, index, slot, at)
+                } else {
+                    alarmManager.cancel(dosePending(medication.id, index, slot ?: 0))
+                }
+            }
+        }
+    }
+
+    /** One tablet's dose alarm, at its time or at the next nag. */
+    fun scheduleDose(medicationId: Long, index: Int, slotMinutes: Int, at: LocalDateTime) {
+        setAlarm(
+            at.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            dosePending(medicationId, index, slotMinutes),
+        )
+    }
+
+    private fun dosePending(medicationId: Long, index: Int, slotMinutes: Int): PendingIntent {
+        val intent = Intent(context, ReminderReceiver::class.java).apply {
+            action = Alarms.ACTION_DOSE
+            putExtra(Alarms.EXTRA_MEDICATION_ID, medicationId)
+            putExtra(Alarms.EXTRA_SLOT, slotMinutes)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            doseRequestCode(medicationId, index),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 
     fun schedule(reminder: ReminderEntity, anchor: LocalDateTime = LocalDateTime.now()) {
@@ -115,4 +169,7 @@ class ReminderScheduler @Inject constructor(
 
     private fun snoozeRequestCode(profileId: Long, kind: ReminderKind): Int =
         1_000_000 + requestCode(profileId, kind)
+
+    private fun doseRequestCode(medicationId: Long, index: Int): Int =
+        2_000_000 + medicationId.toInt() * Alarms.MAX_DOSE_SLOTS + index
 }

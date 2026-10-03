@@ -55,7 +55,6 @@ import java.time.format.DateTimeFormatter
 fun TrendsScreen(
     onEditEntry: (Long) -> Unit,
     onBulkAdd: () -> Unit,
-    onLogWeight: () -> Unit,
     viewModel: TrendsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -64,17 +63,6 @@ fun TrendsScreen(
     var scrubbed by remember { mutableStateOf<ChartPoint?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        ScreenHeader(eyebrow = "Analytics", title = "Weight") {
-            PrimaryButton(
-                text = "Log weight",
-                onClick = onLogWeight,
-                icon = Lucide.Plus,
-                height = MinTouch,
-                color = colors.ink,
-                contentColor = colors.background,
-            )
-        }
-
         SegmentedControl(
             options = TrendRange.entries,
             selected = state.range,

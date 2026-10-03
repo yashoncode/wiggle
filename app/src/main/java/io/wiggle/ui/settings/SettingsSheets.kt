@@ -117,6 +117,23 @@ fun BoxScope.SettingsSheets(viewModel: SettingsViewModel = hiltViewModel()) {
         onSave = { viewModel.setGoalWeight(it); viewModel.closeSheet() },
     )
 
+    CalorieGoalSheet(
+        visible = open is SettingsSheet.CalorieGoal,
+        current = state.calorieGoal,
+        auto = state.autoCalorieGoal,
+        isAuto = state.profile?.dailyCalorieGoal == null,
+        birthYear = state.profile?.birthYear,
+        onDismiss = viewModel::closeSheet,
+        onSave = { kcal, year -> viewModel.setCalorieGoal(kcal, year); viewModel.closeSheet() },
+    )
+
+    StepGoalSheet(
+        visible = open is SettingsSheet.StepGoal,
+        current = state.profile?.dailyStepGoal ?: 10_000,
+        onDismiss = viewModel::closeSheet,
+        onSave = { viewModel.setStepGoal(it); viewModel.closeSheet() },
+    )
+
     ConfirmWipeSheet(
         visible = open is SettingsSheet.ConfirmWipe,
         name = state.profile?.name.orEmpty(),
@@ -155,17 +172,44 @@ private fun BoxScope.ReminderSheet(
                 ReminderKind.WeighIn -> "A nudge to step on the scale, before breakfast if you can."
                 ReminderKind.Measurements -> "Tape measurements move slowly, so once a week is plenty."
                 ReminderKind.Water -> "Regular nudges through the day, and none once you hit the goal."
+                ReminderKind.Meals -> "A nudge at each meal, skipped when that meal is already logged."
+                ReminderKind.Move -> "Checked every hour. Nudges after fewer than 250 steps, using the steps from Health Connect."
+                ReminderKind.Tablets -> "Rings at each tablet's own time, then again until it is ticked off, for up to two hours."
             },
             style = MaterialTheme.typography.bodySmall,
             color = colors.inkMuted,
         )
 
         Spacer(Modifier.height(16.dp))
-        SheetRow(if (current.kind == ReminderKind.Water) "Start at" else "Time") {
-            TimeButton(current.timeMinutes, context) { onChange(current.copy(timeMinutes = it)) }
+        when (current.kind) {
+            ReminderKind.Meals -> ReminderSchedule.mealTimes(current).forEachIndexed { index, minutes ->
+                SheetRow(listOf("Breakfast", "Lunch", "Dinner").getOrElse(index) { "Meal" }) {
+                    TimeButton(minutes, context) { picked ->
+                        val times = ReminderSchedule.mealTimes(current).toMutableList().also { it[index] = picked }
+                        onChange(current.copy(times = times.joinToString(",")))
+                    }
+                }
+            }
+            ReminderKind.Tablets -> {
+                Text("Repeat every", style = MaterialTheme.typography.bodyMedium, color = colors.inkMuted)
+                SegmentedControl(
+                    options = listOf(10, 15, 30),
+                    selected = current.intervalMinutes,
+                    onSelect = { onChange(current.copy(intervalMinutes = it)) },
+                    label = { "$it min" },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            else -> SheetRow(if (current.kind == ReminderKind.Water || current.kind == ReminderKind.Move) "Start at" else "Time") {
+                TimeButton(current.timeMinutes, context) { onChange(current.copy(timeMinutes = it)) }
+            }
         }
 
-        if (current.kind == ReminderKind.Water) {
+        if (current.kind == ReminderKind.Move) {
+            SheetRow("Until") {
+                TimeButton(current.untilMinutes, context) { onChange(current.copy(untilMinutes = it)) }
+            }
+        } else if (current.kind == ReminderKind.Water) {
             SheetRow("Until") {
                 TimeButton(current.untilMinutes, context) { onChange(current.copy(untilMinutes = it)) }
             }
@@ -186,7 +230,7 @@ private fun BoxScope.ReminderSheet(
                     onCheckedChange = { onChange(current.copy(pauseWhenGoalMet = it)) },
                 )
             }
-        } else {
+        } else if (current.kind == ReminderKind.WeighIn || current.kind == ReminderKind.Measurements) {
             Spacer(Modifier.height(14.dp))
             Text("Days", style = MaterialTheme.typography.bodyMedium, color = colors.inkMuted)
             Spacer(Modifier.height(8.dp))
@@ -610,5 +654,88 @@ private fun SheetRow(label: String, trailing: @Composable () -> Unit) {
             color = WiggleTheme.colors.inkMuted,
         )
         trailing()
+    }
+}
+
+@Composable
+private fun BoxScope.CalorieGoalSheet(
+    visible: Boolean,
+    current: Int,
+    auto: Int,
+    isAuto: Boolean,
+    birthYear: Int?,
+    onDismiss: () -> Unit,
+    onSave: (kcal: Int?, birthYear: Int?) -> Unit,
+) {
+    val colors = WiggleTheme.colors
+    val thisYear = java.time.LocalDate.now().year
+    var goal by remember(visible, current) { mutableIntStateOf(current) }
+    var age by remember(visible, birthYear) { mutableIntStateOf(io.wiggle.domain.Nutrition.age(birthYear)) }
+
+    GlassSheet(visible = visible, onDismiss = onDismiss, label = "Daily calories") {
+        Text("Daily calories", style = MaterialTheme.typography.titleLarge, color = colors.ink)
+        Text(
+            "Worked out from height, weight, age and goal: ${"%,d".format(auto)} kcal. " +
+                "Walking is added on top each day from your steps.",
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.inkMuted,
+        )
+        GoalStepper("${"%,d".format(goal)} kcal", onLess = { goal = (goal - 50).coerceAtLeast(1000) }, onMore = { goal = (goal + 50).coerceAtMost(5000) })
+        SheetRow("Age") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RepeatingIconButton(Lucide.Minus, "Younger", onStep = { age = (age - 1).coerceAtLeast(14) }, size = 40.dp)
+                Text("  $age  ", style = MaterialTheme.typography.titleMedium, color = colors.ink)
+                RepeatingIconButton(Lucide.Plus, "Older", onStep = { age = (age + 1).coerceAtMost(100) }, size = 40.dp)
+            }
+        }
+        PrimaryButton(
+            text = "Save goal",
+            onClick = { onSave(goal, thisYear - age) },
+            modifier = Modifier.fillMaxWidth(),
+            icon = Lucide.Utensils,
+            color = colors.food,
+            contentColor = colors.background,
+        )
+        if (!isAuto || goal != auto) {
+            GlassButton(onClick = { onSave(null, thisYear - age) }, modifier = Modifier.fillMaxWidth(), contentDescription = "Use the worked-out goal") {
+                Text("Use worked-out goal", style = MaterialTheme.typography.labelLarge, color = colors.inkMuted)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.StepGoalSheet(
+    visible: Boolean,
+    current: Int,
+    onDismiss: () -> Unit,
+    onSave: (Int) -> Unit,
+) {
+    val colors = WiggleTheme.colors
+    var goal by remember(visible, current) { mutableIntStateOf(current) }
+    GlassSheet(visible = visible, onDismiss = onDismiss, label = "Daily steps") {
+        Text("Daily steps", style = MaterialTheme.typography.titleLarge, color = colors.ink)
+        GoalStepper("%,d".format(goal), onLess = { goal = (goal - 500).coerceAtLeast(1000) }, onMore = { goal = (goal + 500).coerceAtMost(40_000) })
+        PrimaryButton(
+            text = "Save goal",
+            onClick = { onSave(goal) },
+            modifier = Modifier.fillMaxWidth(),
+            icon = Lucide.Activity,
+            color = colors.steps,
+            contentColor = colors.background,
+        )
+    }
+}
+
+@Composable
+private fun GoalStepper(text: String, onLess: () -> Unit, onMore: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RepeatingIconButton(icon = Lucide.Minus, contentDescription = "Less", onStep = onLess)
+        RollingText(text = text, style = MaterialTheme.typography.headlineMedium, color = WiggleTheme.colors.ink)
+        RepeatingIconButton(icon = Lucide.Plus, contentDescription = "More", onStep = onMore)
     }
 }

@@ -146,4 +146,14 @@ object Lucide {
     val Pencil = LucideIcon("M4 20h4L20 8l-4-4L4 16z", "M14 6l4 4")
     val Repeat = LucideIcon("M17 2l4 4-4 4", "M3 11V9a4 4 0 0 1 4-4h14", "M7 22l-4-4 4-4", "M21 13v2a4 4 0 0 1-4 4H3")
     val Search = LucideIcon("M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z", "M20 20l-4-4")
+    val Utensils = LucideIcon("M7 3v7a2 2 0 0 0 4 0V3M9 3v18", "M17 21V3c-2 1-3.5 3.5-3.5 7s1.5 4 3.5 4")
+    val Activity = LucideIcon("M3 12h4l3-8 4 16 3-8h4")
+    val Pill = LucideIcon("M10.5 20.5a5 5 0 0 1-7-7l10-10a5 5 0 0 1 7 7z", "M8.5 8.5l7 7")
+    val Barcode = LucideIcon(
+        "M4 7V5a1 1 0 0 1 1-1h2", "M17 4h2a1 1 0 0 1 1 1v2", "M20 17v2a1 1 0 0 1-1 1h-2",
+        "M7 20H5a1 1 0 0 1-1-1v-2", "M8 8v8", "M11 8v8", "M14 8v8", "M17 8v8",
+    )
+    val Star = LucideIcon("M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z")
+    val Refresh = LucideIcon("M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3", "M18 3v4h-4M6 21v-4h4")
+    val Bottle = LucideIcon("M6 9a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z", "M8 3h8v4H8z", "M9 13h6")
 }

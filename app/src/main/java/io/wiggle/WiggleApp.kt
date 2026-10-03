@@ -64,12 +64,14 @@ class WiggleApp : Application() {
     }
 
     /**
-     * The alarm clock mirrors the reminders table. Watching the table instead of rescheduling at
+     * The alarm clock mirrors the reminders and tablets tables. Watching the table instead of rescheduling at
      * each call site means a toggle, an edited time, a new person and a deleted one are all
      * already handled, and none of them can forget to.
      */
     private fun keepAlarmsInStepWithSettings() = appScope.launch {
-        repository.allReminders.collectLatest { scheduler.sync(it) }
+        combine(repository.allReminders, repository.allMedications) { reminders, medications ->
+            reminders to medications
+        }.collectLatest { (reminders, medications) -> scheduler.sync(reminders, medications) }
     }
 
     /**

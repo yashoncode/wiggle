@@ -45,22 +45,6 @@ fun BodyScreen(viewModel: BodyViewModel = hiltViewModel()) {
     val unit = state.settings.lengthUnit
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        ScreenHeader(
-            eyebrow = state.lastMeasuredOn
-                ?.let { "Last measured ${it.format(DateTimeFormatter.ofPattern("d MMM"))}" }
-                ?: "No measurements yet",
-            title = "Body",
-        ) {
-            PrimaryButton(
-                text = "Measure",
-                onClick = viewModel::openEditor,
-                icon = Lucide.Plus,
-                height = MinTouch,
-                color = colors.ink,
-                contentColor = colors.background,
-            )
-        }
-
         CompositionCard(state, Modifier.cardEntrance(0))
 
         // Two columns of part cards. A plain grid inside a scrolling column would nest scrolls,

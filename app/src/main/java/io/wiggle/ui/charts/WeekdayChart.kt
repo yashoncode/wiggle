@@ -16,6 +16,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -44,6 +47,10 @@ fun BarChart(
     centreOnMean: Boolean = false,
     highlightIndex: Int? = null,
     valueLabel: ((Double) -> String)? = null,
+    /** A dashed line across the bars, e.g. the daily goal. Always inside the scale. */
+    goalLine: Double? = null,
+    /** Makes each bar tappable; the tapped index comes back here. */
+    onSelect: ((Int) -> Unit)? = null,
 ) {
     val colors = WiggleTheme.colors
     val reduceMotion = LocalReduceMotion.current
@@ -76,6 +83,17 @@ fun BarChart(
             .fillMaxWidth()
             .height(height)
             .semantics { contentDescription = spoken }
+            .then(
+                if (onSelect == null) {
+                    Modifier
+                } else {
+                    Modifier.pointerInput(values.size) {
+                        detectTapGestures { tap ->
+                            onSelect((tap.x / (size.width / values.size)).toInt().coerceIn(0, values.lastIndex))
+                        }
+                    }
+                }
+            )
     ) {
         val present = values.filterNotNull()
         if (present.isEmpty()) return@Canvas
@@ -88,7 +106,7 @@ fun BarChart(
 
         val mean = present.average()
         val maxDeviation = present.maxOf { kotlin.math.abs(it - mean) }.takeIf { it > 1e-6 } ?: 1.0
-        val maxValue = present.max().takeIf { it > 1e-6 } ?: 1.0
+        val maxValue = maxOf(present.max(), goalLine ?: 0.0).takeIf { it > 1e-6 } ?: 1.0
 
         values.forEachIndexed { index, value ->
             val centreX = slot * index + slot / 2
@@ -129,7 +147,7 @@ fun BarChart(
                 }
             }
 
-            labels.getOrNull(index)?.let { label ->
+            labels.getOrNull(index)?.takeIf { it.isNotEmpty() }?.let { label ->
                 val layout = measurer.measure(label, labelStyle)
                 drawText(
                     layout,
@@ -139,6 +157,17 @@ fun BarChart(
                     ),
                 )
             }
+        }
+
+        if (goalLine != null && !centreOnMean) {
+            val y = valueBand + plotHeight - (plotHeight * (goalLine / maxValue)).toFloat()
+            drawLine(
+                color = colors.ink.copy(alpha = 0.45f),
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 1.5.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 5.dp.toPx())),
+            )
         }
     }
 }

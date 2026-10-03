@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -33,11 +34,18 @@ import io.wiggle.ui.icons.LucideIcon
 import io.wiggle.ui.motion.LocalReduceMotion
 import io.wiggle.ui.motion.Motion
 import io.wiggle.ui.motion.rememberHaptics
+import io.wiggle.ui.theme.WiggleColors
 import io.wiggle.ui.theme.WiggleTheme
 import kotlin.math.abs
 import kotlin.math.min
 
-data class TabItem(val label: String, val icon: LucideIcon, val route: String)
+data class TabItem(
+    val label: String,
+    val icon: LucideIcon,
+    val route: String,
+    /** The selected tint, so each tab carries its own section colour. */
+    val tint: (WiggleColors) -> Color = { it.weightSoft },
+)
 
 val TabBarHeight = 68.dp
 val TabBarSideMargin = 16.dp
@@ -107,7 +115,7 @@ fun GlassTabBar(
             tabs.forEachIndexed { index, tab ->
                 val selected = index == selectedIndex
                 val tint by animateColorAsState(
-                    targetValue = if (selected) colors.weightSoft else colors.inkMuted,
+                    targetValue = if (selected) tab.tint(colors) else colors.inkMuted,
                     animationSpec = Motion.snappy(),
                     label = "tabTint",
                 )

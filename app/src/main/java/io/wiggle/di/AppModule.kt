@@ -12,6 +12,9 @@ import dagger.hilt.components.SingletonComponent
 import io.wiggle.data.db.BodyDao
 import io.wiggle.data.db.ProfileDao
 import io.wiggle.data.db.CustomMeasureDao
+import io.wiggle.data.db.FoodDao
+import io.wiggle.data.db.MedicationDao
+import io.wiggle.data.db.SavedFoodDao
 import io.wiggle.data.db.ReminderDao
 import io.wiggle.data.db.WaterDao
 import io.wiggle.data.db.WeightDao
@@ -49,6 +52,12 @@ object AppModule {
     @Provides fun reminderDao(db: WiggleDatabase): ReminderDao = db.reminderDao()
 
     @Provides fun customMeasureDao(db: WiggleDatabase): CustomMeasureDao = db.customMeasureDao()
+
+    @Provides fun foodDao(db: WiggleDatabase): FoodDao = db.foodDao()
+
+    @Provides fun savedFoodDao(db: WiggleDatabase): SavedFoodDao = db.savedFoodDao()
+
+    @Provides fun medicationDao(db: WiggleDatabase): MedicationDao = db.medicationDao()
 
     @Provides
     @Singleton

@@ -192,3 +192,98 @@ interface CustomMeasureDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertValues(values: List<CustomMeasurementValueEntity>)
 }
+
+@Dao
+interface FoodDao {
+    @Query(
+        "SELECT * FROM food_entries WHERE profileId = :profileId AND loggedAt >= :fromMillis " +
+            "AND loggedAt < :toMillis ORDER BY loggedAt ASC"
+    )
+    fun observeBetween(profileId: Long, fromMillis: Long, toMillis: Long): Flow<List<FoodEntryEntity>>
+
+    /** The latest entries, newest first, which the add sheet boils down to distinct recent foods. */
+    @Query("SELECT * FROM food_entries WHERE profileId = :profileId ORDER BY loggedAt DESC LIMIT 300")
+    fun observeRecent(profileId: Long): Flow<List<FoodEntryEntity>>
+
+    @Query(
+        "SELECT COUNT(*) FROM food_entries WHERE profileId = :profileId AND meal = :meal " +
+            "AND loggedAt >= :fromMillis AND loggedAt < :toMillis"
+    )
+    suspend fun countForMeal(profileId: Long, meal: Meal, fromMillis: Long, toMillis: Long): Int
+
+    @Query("SELECT * FROM food_entries WHERE profileId = :profileId ORDER BY loggedAt ASC")
+    suspend fun allFor(profileId: Long): List<FoodEntryEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(entries: List<FoodEntryEntity>)
+
+    @Query("DELETE FROM food_entries WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM food_entries WHERE profileId = :profileId")
+    suspend fun deleteAllFor(profileId: Long)
+}
+
+@Dao
+interface SavedFoodDao {
+    @Query("SELECT * FROM saved_foods WHERE profileId = :profileId ORDER BY name COLLATE NOCASE ASC")
+    fun observeAll(profileId: Long): Flow<List<SavedFoodEntity>>
+
+    @Query("SELECT * FROM saved_foods WHERE profileId = :profileId AND name = :name AND source = :source LIMIT 1")
+    suspend fun find(profileId: Long, name: String, source: String): SavedFoodEntity?
+
+    @Insert
+    suspend fun insert(food: SavedFoodEntity): Long
+
+    @Update
+    suspend fun update(food: SavedFoodEntity)
+
+    @Query("DELETE FROM saved_foods WHERE id = :id")
+    suspend fun deleteById(id: Long)
+}
+
+@Dao
+interface MedicationDao {
+    @Query("SELECT * FROM medications WHERE profileId = :profileId ORDER BY createdAt ASC")
+    fun observeAll(profileId: Long): Flow<List<MedicationEntity>>
+
+    /** Every medication for every profile: what the alarm scheduler watches. */
+    @Query("SELECT * FROM medications")
+    fun observeEvery(): Flow<List<MedicationEntity>>
+
+    @Query("SELECT * FROM medications")
+    suspend fun all(): List<MedicationEntity>
+
+    @Query("SELECT * FROM medications WHERE id = :id")
+    suspend fun get(id: Long): MedicationEntity?
+
+    @Insert
+    suspend fun insert(medication: MedicationEntity): Long
+
+    @Update
+    suspend fun update(medication: MedicationEntity)
+
+    @Query("DELETE FROM medications WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query(
+        "SELECT d.* FROM dose_logs d INNER JOIN medications m ON m.id = d.medicationId " +
+            "WHERE m.profileId = :profileId AND d.day = :day"
+    )
+    fun observeDosesOn(profileId: Long, day: Long): Flow<List<DoseLogEntity>>
+
+    @Query(
+        "SELECT COUNT(*) FROM dose_logs WHERE medicationId = :medicationId AND day = :day " +
+            "AND slotMinutes = :slot"
+    )
+    suspend fun countDose(medicationId: Long, day: Long, slot: Int): Int
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertDose(log: DoseLogEntity): Long
+
+    @Query("DELETE FROM dose_logs WHERE medicationId = :medicationId AND day = :day AND slotMinutes = :slot")
+    suspend fun deleteDose(medicationId: Long, day: Long, slot: Int): Int
+
+    @Query("DELETE FROM dose_logs WHERE medicationId IN (SELECT id FROM medications WHERE profileId = :profileId)")
+    suspend fun deleteDosesFor(profileId: Long)
+}

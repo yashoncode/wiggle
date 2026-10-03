@@ -24,6 +24,15 @@ object Palette {
     val BodySoft = Color(0xFFFFA99D)
     val Goal = Color(0xFFFFB36B)
     val GoalSoft = Color(0xFFFFC48E)
+    val Food = Color(0xFFB8F36B)
+    val FoodSoft = Color(0xFFD4F98F)
+    val Steps = Color(0xFFA98BFF)
+    val StepsSoft = Color(0xFFC3AEFF)
+    val Tablets = Color(0xFFFF7FB5)
+    val TabletsSoft = Color(0xFFFF9CC6)
+    val Protein = Color(0xFFFF9C8F)
+    val Carbs = Color(0xFFFFD166)
+    val Fat = Color(0xFF9CCBFF)
     val Toggle = Color(0xFF34C77B)
 
     val LightCanvas = Color(0xFFF2F5FC)
@@ -58,6 +67,15 @@ data class WiggleColors(
     val bodySoft: Color,
     val goal: Color,
     val goalSoft: Color,
+    val food: Color,
+    val foodSoft: Color,
+    val steps: Color,
+    val stepsSoft: Color,
+    val tablets: Color,
+    val tabletsSoft: Color,
+    val protein: Color,
+    val carbs: Color,
+    val fat: Color,
     val toggleOn: Color,
     val glowTeal: Color,
     val glowBlue: Color,
@@ -88,6 +106,15 @@ val DarkWiggleColors = WiggleColors(
     bodySoft = Palette.BodySoft,
     goal = Palette.Goal,
     goalSoft = Palette.GoalSoft,
+    food = Palette.Food,
+    foodSoft = Palette.FoodSoft,
+    steps = Palette.Steps,
+    stepsSoft = Palette.StepsSoft,
+    tablets = Palette.Tablets,
+    tabletsSoft = Palette.TabletsSoft,
+    protein = Palette.Protein,
+    carbs = Palette.Carbs,
+    fat = Palette.Fat,
     toggleOn = Palette.Toggle,
     glowTeal = Palette.GlowTeal,
     glowBlue = Palette.GlowBlue,
@@ -124,6 +151,16 @@ val LightWiggleColors = WiggleColors(
     bodySoft = Color(0xFFB03C2C),
     goal = Color(0xFFC07A22),
     goalSoft = Color(0xFF9A5F17),
+    // Darkened like the others so text in them clears 4.5:1 on the light canvas.
+    food = Color(0xFF5C9A1C),
+    foodSoft = Color(0xFF3F7310),
+    steps = Color(0xFF7A5CE6),
+    stepsSoft = Color(0xFF5A3DC4),
+    tablets = Color(0xFFD0508A),
+    tabletsSoft = Color(0xFFA8336A),
+    protein = Color(0xFFD9503C),
+    carbs = Color(0xFFB98A12),
+    fat = Color(0xFF2F76D8),
     toggleOn = Color(0xFF1FA463),
     glowTeal = Palette.GlowTeal,
     glowBlue = Palette.GlowBlue,

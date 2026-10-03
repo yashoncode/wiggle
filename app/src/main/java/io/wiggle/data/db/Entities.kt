@@ -1,5 +1,6 @@
 package io.wiggle.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -29,6 +30,9 @@ data class ProfileEntity(
     val startWeightKg: Double?,
     val dailyWaterGoalMl: Int = 2500,
     val createdAt: Long = System.currentTimeMillis(),
+    /** Null means worked out from height, weight, age and goal; see `Nutrition.calorieGoal`. */
+    val dailyCalorieGoal: Int? = null,
+    @ColumnInfo(defaultValue = "10000") val dailyStepGoal: Int = 10000,
 )
 
 @Entity(
@@ -97,7 +101,11 @@ data class WaterEntryEntity(
     val amountMl: Int,
 )
 
-enum class ReminderKind { WeighIn, Measurements, Water }
+/**
+ * Append only: the ordinal is part of every alarm request code and notification id, so inserting
+ * a kind anywhere but the end would orphan alarms that are already set.
+ */
+enum class ReminderKind { WeighIn, Measurements, Water, Meals, Move, Tablets }
 
 @Entity(
     tableName = "reminders",
@@ -128,6 +136,8 @@ data class ReminderEntity(
     val untilMinutes: Int = 22 * 60,
     /** Water only: stop nudging once the daily goal is met. */
     val pauseWhenGoalMet: Boolean = true,
+    /** Meals only: breakfast, lunch and dinner times, comma-separated minutes after midnight. */
+    @ColumnInfo(defaultValue = "") val times: String = "",
 )
 
 /**
@@ -185,4 +195,120 @@ data class CustomMeasurementValueEntity(
     val sessionId: Long,
     val typeId: Long,
     val valueCm: Double,
+)
+
+enum class Meal { Breakfast, Lunch, Snacks, Dinner }
+
+/**
+ * One food eaten, stored with its nutrients per 100 g and the portion, so the log never changes when
+ * the food database does, and a recent entry can be added again exactly as it was.
+ */
+@Entity(
+    tableName = "food_entries",
+    foreignKeys = [
+        ForeignKey(
+            entity = ProfileEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["profileId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index(value = ["profileId", "loggedAt"])],
+)
+data class FoodEntryEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val profileId: Long,
+    val loggedAt: Long,
+    val meal: Meal,
+    val name: String,
+    /** Where the food came from: `IN`, `US`, `OFF` (Open Food Facts) or `MY` for your own. */
+    val source: String,
+    val kcal100: Double,
+    val protein100: Double,
+    val carbs100: Double,
+    val fat100: Double,
+    /** "1 chapati", "1 katori"; empty means plain grams. */
+    val servingLabel: String,
+    val servingG: Double,
+    val servings: Double,
+)
+
+/** A food you made yourself, or one you starred. Either way it is kept with its nutrients. */
+@Entity(
+    tableName = "saved_foods",
+    foreignKeys = [
+        ForeignKey(
+            entity = ProfileEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["profileId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index(value = ["profileId"])],
+)
+data class SavedFoodEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val profileId: Long,
+    val name: String,
+    val source: String,
+    val kcal100: Double,
+    val protein100: Double,
+    val carbs100: Double,
+    val fat100: Double,
+    val servingLabel: String,
+    val servingG: Double,
+    val favorite: Boolean,
+    /** Made in Wiggle rather than found in a database. Shown under "My foods". */
+    val custom: Boolean,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+/** A tablet, capsule or supplement taken on a daily schedule. */
+@Entity(
+    tableName = "medications",
+    foreignKeys = [
+        ForeignKey(
+            entity = ProfileEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["profileId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index(value = ["profileId"])],
+)
+data class MedicationEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val profileId: Long,
+    val name: String,
+    /** "after lunch", "with food". */
+    val note: String = "",
+    /** Dose times, comma-separated minutes after midnight. */
+    val times: String,
+    /** Tablets left, or null when not counted. Taking a dose takes [perDose] off. */
+    val stock: Int? = null,
+    val perDose: Int = 1,
+    val colorIndex: Int = 0,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+/** A dose ticked off: one row per medication, day and time slot. */
+@Entity(
+    tableName = "dose_logs",
+    foreignKeys = [
+        ForeignKey(
+            entity = MedicationEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["medicationId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index(value = ["medicationId", "day", "slotMinutes"], unique = true)],
+)
+data class DoseLogEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val medicationId: Long,
+    /** Local calendar day, as epoch days. */
+    val day: Long,
+    val slotMinutes: Int,
+    val takenAt: Long,
 )

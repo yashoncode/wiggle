@@ -1,6 +1,7 @@
 package io.wiggle.domain
 
 import io.wiggle.data.db.ReminderEntity
+import io.wiggle.data.db.Meal
 import io.wiggle.data.db.ReminderKind
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -50,7 +51,30 @@ object ReminderSchedule {
         return when (reminder.kind) {
             ReminderKind.WeighIn -> nextDaily(reminder.daysMask, reminder.timeMinutes, anchor)
             ReminderKind.Measurements -> nextEveryNWeeks(reminder, anchor)
-            ReminderKind.Water -> nextWaterSlot(reminder, anchor)
+            ReminderKind.Water, ReminderKind.Move -> nextWaterSlot(reminder, anchor)
+            // The earliest of the three meal times, wherever each next falls.
+            ReminderKind.Meals -> mealTimes(reminder).mapNotNull { nextDaily(0b1111111, it, anchor) }.minOrNull()
+            // Each tablet keeps its own alarms; see ReminderScheduler.syncDoses.
+            ReminderKind.Tablets -> null
+        }
+    }
+
+    /** Breakfast, lunch and dinner reminder times. */
+    val DefaultMealTimes = listOf(8 * 60 + 30, 13 * 60 + 30, 20 * 60 + 30)
+
+    fun mealTimes(reminder: ReminderEntity): List<Int> =
+        Doses.parseTimes(reminder.times).ifEmpty { DefaultMealTimes }
+
+    /**
+     * Which meal a meal reminder that fires at [minutes] is about: the first time is breakfast, the
+     * second lunch, the rest dinner.
+     */
+    fun mealAt(reminder: ReminderEntity, minutes: Int): Meal {
+        val times = mealTimes(reminder)
+        return when (times.indices.minByOrNull { kotlin.math.abs(times[it] - minutes) } ?: 0) {
+            0 -> Meal.Breakfast
+            1 -> Meal.Lunch
+            else -> Meal.Dinner
         }
     }
 
@@ -112,5 +136,8 @@ object ReminderSchedule {
         ReminderKind.WeighIn -> "Weigh-in"
         ReminderKind.Measurements -> "Body measurements"
         ReminderKind.Water -> "Drink water"
+        ReminderKind.Meals -> "Log meals"
+        ReminderKind.Move -> "Time to move"
+        ReminderKind.Tablets -> "Tablets"
     }
 }

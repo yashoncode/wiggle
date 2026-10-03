@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        openTarget = intent?.getStringExtra(Alarms.EXTRA_OPEN)
+        openTarget = openTargetOf(intent)
         askForNotificationsOnce()
         setContent {
             WiggleRoot(
@@ -64,7 +64,18 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        openTarget = intent.getStringExtra(Alarms.EXTRA_OPEN)
+        openTarget = openTargetOf(intent)
+    }
+
+    /**
+     * Health Connect opens the app to explain why it reads steps; the Steps screen is that
+     * explanation. Everything else names its screen in an extra.
+     */
+    private fun openTargetOf(intent: Intent?): String? = when (intent?.action) {
+        "androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE",
+        "android.intent.action.VIEW_PERMISSION_USAGE",
+        -> Alarms.OPEN_STEPS
+        else -> intent?.getStringExtra(Alarms.EXTRA_OPEN)
     }
 
     /**

@@ -68,14 +68,6 @@ fun WaterScreen(
     val unit = state.settings.volumeUnit
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        ScreenHeader(eyebrow = "Hydration", title = "Water") {
-            AccentPill(
-                text = "Goal ${formatVolume(state.goalMl, unit)} ${volumeUnitLabel(state.goalMl, unit)}",
-                accent = colors.water,
-                icon = Lucide.Target,
-            )
-        }
-
         BottleCard(state, unit, Modifier.cardEntrance(0))
 
         QuickAddRow(

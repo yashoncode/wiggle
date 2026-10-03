@@ -1,5 +1,6 @@
 package io.wiggle.data.db
 
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
@@ -17,6 +18,11 @@ class Converters {
     @TypeConverter fun kindToString(value: ReminderKind): String = value.name
 
     @TypeConverter fun stringToKind(value: String): ReminderKind = ReminderKind.valueOf(value)
+
+    @TypeConverter fun mealToString(value: Meal): String = value.name
+
+    @TypeConverter fun stringToMeal(value: String): Meal =
+        runCatching { Meal.valueOf(value) }.getOrDefault(Meal.Snacks)
 }
 
 @Database(
@@ -28,9 +34,16 @@ class Converters {
         ReminderEntity::class,
         CustomMeasureTypeEntity::class,
         CustomMeasurementValueEntity::class,
+        FoodEntryEntity::class,
+        SavedFoodEntity::class,
+        MedicationEntity::class,
+        DoseLogEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
+    // 2 -> 3 only adds tables and defaulted columns (food, tablets, calorie and step goals, meal
+    // reminder times), which Room works out from the exported schemas on its own.
+    autoMigrations = [AutoMigration(from = 2, to = 3)],
 )
 @TypeConverters(Converters::class)
 abstract class WiggleDatabase : RoomDatabase() {
@@ -40,6 +53,9 @@ abstract class WiggleDatabase : RoomDatabase() {
     abstract fun waterDao(): WaterDao
     abstract fun reminderDao(): ReminderDao
     abstract fun customMeasureDao(): CustomMeasureDao
+    abstract fun foodDao(): FoodDao
+    abstract fun savedFoodDao(): SavedFoodDao
+    abstract fun medicationDao(): MedicationDao
 
     companion object {
         const val NAME = "wiggle.db"

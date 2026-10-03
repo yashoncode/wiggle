@@ -16,7 +16,7 @@ Root `build.gradle.kts` needs `classpath("org.jetbrains.kotlin:kotlin-gradle-plu
 ```
 ./gradlew :app:assembleDebug
 ./gradlew :app:assembleRelease          # signed, minified, ~2.6 MB
-./gradlew :app:testDebugUnitTest        # 53 tests
+./gradlew :app:testDebugUnitTest        # 69 tests
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n io.wiggle.debug/io.wiggle.MainActivity
 ```
@@ -36,7 +36,7 @@ onboarding complete, so first-run setup only appears in release or after `pm cle
 `app/build.gradle.kts`. **Back both up.** Losing the keystore means this app can never be updated
 under the same identity. Without `keystore.properties`, `assembleRelease` still builds, unsigned.
 
-Current release: `Wiggle 1.5` (versionCode 6), published at
+Current release: `Wiggle 2.0` (versionCode 7), published at
 <https://github.com/yashoncode/wiggle/releases>. Earlier APKs are in
 `C:\Users\Yashwanth\Downloads\` (`Wiggle-1.0.apk`, `Wiggle-1.1.apk`).
 
@@ -75,7 +75,7 @@ them, anyone can publish a build that Android installs straight over this app.
    themes, theme mode follows the system by default (Settings → Appearance).
 2. **Data layer** — Room v2, every table carries `profileId` (multi-account). `Stats`, `BulkParse`,
    `WaterCoach`, `Greeting`, `Csv`, `Updates` and `TodayOverview` are pure Kotlin:
-   **53 unit tests, all passing**.
+   **69 unit tests, all passing** (2.0 added `Nutrition`, `FoodSearch`, `StepStats`, `Doses`).
 3. **Today + log sheet** — greeting header ("Good evening, Yash", auto-shrinking to one line),
    hero card, rolling digits, water ring, BMI, "Up next"; the plus opens a quick-add sheet
    (weight / body / water); ruler wheel with haptics; confetti.
@@ -172,11 +172,42 @@ them, anyone can publish a build that Android installs straight over this app.
    fade placed by `startY`/`endY`, and is eased rather than linear so the eye cannot find where it
    leaves transparent.
 
+19. **2.0 layout** — four tabs, Home · Food · Steps · Body, with Settings a round button in every
+   header and Reminders a full screen behind the bell on Home. Food is Calories | Water | Tablets,
+   Body is Weight | Measurements (the old Trends and Body screens without their headers). Each tab
+   tints the tab bar its own colour. Built from the "Body Weight Tracker" design canvas.
+20. **Calories** — `food_entries` stores per-100 g nutrients plus the portion, so the log never moves
+   when the food table does. The goal is the person's own or `Nutrition.calorieGoal` (Mifflin-St
+   Jeor × 1.2, −500 to lose, +250 to gain, floors 1500/1200); walking from steps is added on top,
+   which is why maintenance is the sedentary figure. Macros are a 27/43/30 split of the goal.
+21. **Food database** — `assets/foods.tsv.gz`, 14,736 foods, 282 KB, built by
+   `tools/build_foods.py` from USDA FoodData Central (CC0), UK CoFID 2021 (OGL v3) and the Indian
+   Nutrient Databank. Searched in memory by `FoodSearch` (word prefixes, other names, Indian dishes
+   first). Packaged food and barcodes come from Open Food Facts' search API
+   (`search.openfoodfacts.org`; the old `cgi/search.pl` answers "temporarily unavailable"), India
+   first. The barcode scanner is Google Play services' own UI, so no camera permission.
+22. **Steps** — read from Health Connect, never counted here: Realme/OPPO/OnePlus's OHealth writes
+   into it under Data sharing, and Android 14+ counts phone steps there itself once an app may read
+   them. No service, no permanent notification. Steps belong to one person
+   (`Settings.stepsProfileId`), set when they connect. Refreshed on every resume.
+23. **Tablets** — `medications` + `dose_logs`. Each dose time has its own alarm (request code
+   2,000,000 + id × 8 + slot) that nags every 10/15/30 min until ticked or two hours pass. A stale
+   alarm from a deleted or re-timed tablet finds nothing and stops. Counted stock moves with ticks.
+24. **New reminders** — `ReminderKind` gained Meals, Move and Tablets, appended so existing alarm
+   request codes stay put. Meals is skipped when that meal is logged; Move reads the last hour from
+   Health Connect and needs background reading allowed; it stays quiet when it cannot read.
+25. **Database 3** — a Room auto-migration from the exported 2.json: new tables and defaulted
+   columns only.
+
 ## Remaining
 
-- **Health Connect** — read and write weight. Never wired up.
+- **Health Connect** — steps are read; weight is still not written there.
+- **Food on other days** — the Calories screen is today only; no backdating a meal.
+- **Meal photo** — the design's camera button needs an image model; not built.
+- **Widget** — still weigh-in, measurements and water; no calories or steps line yet.
+- **CSV export** does not include food or tablets.
 - **Shared-element morph** from the log sheet into the hero card.
-- **Reduce-motion** is honoured throughout but only follows the system setting; there is no
+- **Reduce-motion** has an in-app switch since 2.0 (Settings › Display), on top of the system
   in-app override.
 
 ## Known gaps
@@ -196,4 +227,8 @@ them, anyone can publish a build that Android installs straight over this app.
   until Wiggle is opened. `MainActivity.onStart` redraws it for exactly that reason, and the
   placeholder says "Open Wiggle once to fill this in" rather than spinning. The device-side fix is
   Settings, Battery, allow background activity / auto-launch for Wiggle.
-- Health Connect dependency is not in the Gradle cache; it will download on first use.
+- The Indian Nutrient Databank ships without a licence file; its paper calls it open-access and
+  free to use. Ask its authors before any store release, or set `INCLUDE_INDB = False` in
+  `tools/build_foods.py` and rebuild. Its per-100 g values are for raw ingredients, so per-serving
+  numbers are sound and weighed grams of dry-grain dishes read high.
+- USDA counts fibre in carbohydrate; CoFID and INDB do not.

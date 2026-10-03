@@ -47,7 +47,8 @@ object WiggleTheme {
 fun WiggleTheme(
     mode: ThemeMode = ThemeMode.System,
     hazeState: HazeState,
-    reduceMotion: Boolean = rememberSystemReduceMotion(),
+    /** The in-app switch; the phone's own animation setting always applies as well. */
+    reduceMotion: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val dark = when (mode) {
@@ -85,7 +86,7 @@ fun WiggleTheme(
     CompositionLocalProvider(
         LocalWiggleColors provides colors,
         LocalHazeState provides hazeState,
-        LocalReduceMotion provides reduceMotion,
+        LocalReduceMotion provides (reduceMotion || rememberSystemReduceMotion()),
         LocalTextStyle provides WiggleTypography.bodyLarge.copy(color = colors.ink),
     ) {
         MaterialTheme(

@@ -27,8 +27,14 @@ data class Settings(
     val volumeUnit: VolumeUnit = VolumeUnit.Ml,
     val themeMode: ThemeMode = ThemeMode.System,
     val onboardingComplete: Boolean = false,
-    val healthConnectEnabled: Boolean = false,
     val hapticsEnabled: Boolean = true,
+    /** Calm every animation down, on top of whatever the phone's own setting says. */
+    val reduceMotion: Boolean = false,
+    /**
+     * Whose steps the phone's step count is. Health Connect holds the phone owner's steps, so they
+     * belong to one person rather than to whoever happens to be selected. 0 means not connected.
+     */
+    val stepsProfileId: Long = 0,
 )
 
 @Singleton
@@ -41,8 +47,9 @@ class SettingsStore @Inject constructor(private val context: Context) {
         val VolumeUnit = stringPreferencesKey("volume_unit")
         val Theme = stringPreferencesKey("theme_mode")
         val Onboarded = booleanPreferencesKey("onboarding_complete")
-        val HealthConnect = booleanPreferencesKey("health_connect_enabled")
         val Haptics = booleanPreferencesKey("haptics_enabled")
+        val ReduceMotion = booleanPreferencesKey("reduce_motion")
+        val StepsProfile = longPreferencesKey("steps_profile_id")
     }
 
     val settings: Flow<Settings> = context.settingsDataStore.data.map { prefs ->
@@ -53,8 +60,9 @@ class SettingsStore @Inject constructor(private val context: Context) {
             volumeUnit = prefs[Keys.VolumeUnit].toEnum(VolumeUnit.Ml),
             themeMode = prefs[Keys.Theme].toEnum(ThemeMode.System),
             onboardingComplete = prefs[Keys.Onboarded] ?: false,
-            healthConnectEnabled = prefs[Keys.HealthConnect] ?: false,
             hapticsEnabled = prefs[Keys.Haptics] ?: true,
+            reduceMotion = prefs[Keys.ReduceMotion] ?: false,
+            stepsProfileId = prefs[Keys.StepsProfile] ?: 0L,
         )
     }
 
@@ -64,8 +72,9 @@ class SettingsStore @Inject constructor(private val context: Context) {
     suspend fun setVolumeUnit(unit: VolumeUnit) = put(Keys.VolumeUnit, unit.name)
     suspend fun setThemeMode(mode: ThemeMode) = put(Keys.Theme, mode.name)
     suspend fun setOnboardingComplete(value: Boolean) = put(Keys.Onboarded, value)
-    suspend fun setHealthConnectEnabled(value: Boolean) = put(Keys.HealthConnect, value)
     suspend fun setHapticsEnabled(value: Boolean) = put(Keys.Haptics, value)
+    suspend fun setReduceMotion(value: Boolean) = put(Keys.ReduceMotion, value)
+    suspend fun setStepsProfile(id: Long) = put(Keys.StepsProfile, id)
 
     private suspend fun <T> put(key: Preferences.Key<T>, value: T) {
         context.settingsDataStore.edit { it[key] = value }
